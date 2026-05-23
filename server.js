@@ -6,7 +6,7 @@ const app = express();
 const PORT = 3000;
 
 // Data directory — resolve relative to executable when packaged with pkg
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.GAMESCAPE_DATA;
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 
 app.use(express.json());
@@ -238,6 +238,8 @@ app.get('*', (req, res) => {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Gamescape running at http://localhost:${PORT}`);
 });
+
+module.exports = { server, PORT };
