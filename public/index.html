@@ -1015,6 +1015,24 @@ body {
   100% { transform: scale(0.8); opacity: 0; }
 }
 
+#turtle-flipper { display: block; }
+#turtle-flipper.face-right { transform: scaleX(-1); }
+#turtle-flipper.flip-to-right { animation: turtle-flip-to-right 0.35s ease forwards; }
+#turtle-flipper.flip-to-left  { animation: turtle-flip-to-left  0.35s ease forwards; }
+
+@keyframes turtle-flip-to-right {
+  0%   { transform: scaleX(1)  scaleY(1); }
+  40%  { transform: scaleX(0)  scaleY(1.15); }
+  60%  { transform: scaleX(0)  scaleY(1.15); }
+  100% { transform: scaleX(-1) scaleY(1); }
+}
+@keyframes turtle-flip-to-left {
+  0%   { transform: scaleX(-1) scaleY(1); }
+  40%  { transform: scaleX(0)  scaleY(1.15); }
+  60%  { transform: scaleX(0)  scaleY(1.15); }
+  100% { transform: scaleX(1)  scaleY(1); }
+}
+
 /* ── Empty states ─────────────────────────────────────────────────── */
 .empty-state {
   color: var(--dim);
@@ -1101,7 +1119,9 @@ select option { background: #1a1a1a; }
 <!-- Turtle Companion -->
 <div id="turtle-companion">
   <div id="turtle-bubble"></div>
-  <span id="turtle-emoji">🐢</span>
+  <div id="turtle-flipper">
+    <span id="turtle-emoji">🐢</span>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -2221,7 +2241,8 @@ const TURTLE_STATES = {
   sad:       { emoji: '😢', ms: 2500 },
   excited:   { emoji: '✨', ms: 2000 },
 };
-let turtleTimer = null;
+let turtleTimer  = null;
+let currentFacing = 'left';
 
 function turtleReact(state) {
   const companion = document.getElementById('turtle-companion');
@@ -2232,7 +2253,7 @@ function turtleReact(state) {
   clearTimeout(turtleTimer);
   companion.classList.remove('celebrate', 'sad', 'excited');
   bubble.classList.remove('pop');
-  void companion.offsetWidth; // restart animations
+  void companion.offsetWidth;
 
   bubble.textContent = r.emoji;
   bubble.classList.add('pop');
@@ -2243,6 +2264,20 @@ function turtleReact(state) {
     bubble.classList.remove('pop');
     bubble.textContent = '';
   }, r.ms);
+}
+
+function setTurtleFacing(direction) {
+  if (currentFacing === direction) return;
+  const flipper   = document.getElementById('turtle-flipper');
+  const animClass = 'flip-to-' + direction;
+  flipper.classList.remove('flip-to-left', 'flip-to-right');
+  void flipper.offsetWidth;
+  flipper.classList.add(animClass);
+  flipper.addEventListener('animationend', () => {
+    flipper.classList.remove(animClass, 'face-left', 'face-right');
+    flipper.classList.add('face-' + direction);
+    currentFacing = direction;
+  }, { once: true });
 }
 
 (function () {
@@ -2259,6 +2294,20 @@ function turtleReact(state) {
     companion.style.bottom = 'auto';
     companion.style.left   = saved.left;
     companion.style.top    = saved.top;
+  }
+
+  // Set initial facing without animation once layout is ready
+  requestAnimationFrame(() => {
+    const rect   = companion.getBoundingClientRect();
+    const facing = (rect.left + rect.width / 2) < window.innerWidth / 2 ? 'right' : 'left';
+    currentFacing = facing;
+    document.getElementById('turtle-flipper').classList.add('face-' + facing);
+  });
+
+  function settle() {
+    localStorage.setItem('turtlePos', JSON.stringify({ left: companion.style.left, top: companion.style.top }));
+    const rect   = companion.getBoundingClientRect();
+    setTurtleFacing((rect.left + rect.width / 2) < window.innerWidth / 2 ? 'right' : 'left');
   }
 
   companion.addEventListener('mousedown', (e) => {
@@ -2293,7 +2342,6 @@ function turtleReact(state) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
 
-    // Derive release velocity from recent mouse history (px/ms → px/frame at ~60fps)
     let vx = 0, vy = 0;
     if (moveHistory.length >= 2) {
       const a = moveHistory[0], b = moveHistory[moveHistory.length - 1];
@@ -2301,13 +2349,13 @@ function turtleReact(state) {
       if (dt > 0) { vx = (b.x - a.x) / dt * 16; vy = (b.y - a.y) / dt * 16; }
     }
 
+    if (Math.abs(vx) < STOP_VEL && Math.abs(vy) < STOP_VEL) { settle(); return; }
+
     function slide() {
       vx *= FRICTION;
       vy *= FRICTION;
       if (Math.abs(vx) < STOP_VEL && Math.abs(vy) < STOP_VEL) {
-        localStorage.setItem('turtlePos', JSON.stringify({ left: companion.style.left, top: companion.style.top }));
-        rafId = null;
-        return;
+        settle(); rafId = null; return;
       }
       const newLeft = Math.max(0, Math.min(window.innerWidth  - dragW, parseFloat(companion.style.left) + vx));
       const newTop  = Math.max(0, Math.min(window.innerHeight - dragH, parseFloat(companion.style.top)  + vy));
