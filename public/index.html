@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamescape</title>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0d0d0d;
+  --bg2:       #111;
+  --bg3:       #161616;
+  --bg4:       #1a1a1a;
+  --border:    #2a2a2a;
+  --green:     #00ff41;
+  --accent:    #39ff14;
+  --dim:       #444;
+  --dim2:      #333;
+  --text:      #cccccc;
+  --text-dim:  #888;
+  --red:       #ff4444;
+  --orange:    #ff8c00;
+  --yellow:    #ffd700;
+  --blue:      #4fc3f7;
+  --purple:    #bb86fc;
+  --cyan:      #00e5ff;
+  --font:      'Courier New', Courier, monospace;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--green); }
+
+/* ── Layout ───────────────────────────────────────────────────────── */
+#app { display: flex; flex: 1; overflow: hidden; }
+
+#sidebar {
+  width: 220px;
+  min-width: 180px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#content-area {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+#view-container {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────── */
+#sidebar-header {
+  padding: 12px 10px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+#sidebar-header h1 {
+  font-size: 15px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+#sidebar-header p {
+  font-size: 10px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+#project-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.project-item {
+  padding: 7px 10px;
+  cursor: pointer;
+  color: var(--text-dim);
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.project-item:hover { background: var(--bg3); color: var(--text); }
+
+.project-item.active {
+  background: var(--bg3);
+  color: var(--green);
+  border-left-color: var(--green);
+}
+
+.project-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.project-delete-btn {
+  background: none; border: none; color: var(--dim); cursor: pointer;
+  font-family: var(--font); font-size: 12px; padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.project-item:hover .project-delete-btn { opacity: 1; }
+.project-delete-btn:hover { color: var(--red); }
+
+#btn-new-project {
+  margin: 8px;
+  padding: 7px;
+  background: none;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+#btn-new-project:hover { background: var(--green); color: var(--bg); }
+
+/* ── Topbar ───────────────────────────────────────────────────────── */
+#active-project-name {
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  flex: 1;
+}
+
+.view-btn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 1px;
+}
+.view-btn.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(0,255,65,0.07);
+}
+.view-btn:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
+
+/* ── Filter Button & Dropdown ─────────────────────────────────────── */
+#filter-wrap { position: relative; }
+
+#filter-btn { position: relative; }
+#filter-btn.has-filters { border-color: var(--green); color: var(--green); background: rgba(0,255,65,0.07); }
+
+.filter-count-badge {
+  display: inline-block;
+  background: var(--green);
+  color: var(--bg);
+  border-radius: 2px;
+  font-size: 9px;
+  padding: 0 4px;
+  margin-left: 4px;
+  line-height: 14px;
+  font-weight: bold;
+  vertical-align: middle;
+}
+
+#filter-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--green);
+  padding: 10px;
+  min-width: 260px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeIn 0.15s ease;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.filter-section-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.filter-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.filter-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.12s;
+  border-radius: 2px;
+  font-family: var(--font);
+}
+.filter-chip:hover { border-color: var(--text-dim); color: var(--text); }
+.filter-chip.active { border-color: var(--green); color: var(--green); background: rgba(0,255,65,0.1); }
+
+.filter-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+.btn-clear-filters {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+  align-self: flex-start;
+}
+.btn-clear-filters:hover { border-color: var(--red); color: var(--red); }
+
+#btn-new-item {
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+#btn-new-item:hover { background: var(--accent); color: var(--bg); }
+
+/* ── Tree View ────────────────────────────────────────────────────── */
+#tree-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 4px;
+}
+
+.tree-section { margin-bottom: 4px; }
+
+.tree-node {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.1s;
+  user-select: none;
+  gap: 4px;
+}
+.tree-node:hover { background: var(--bg3); }
+.tree-node.selected { background: rgba(0,255,65,0.08); }
+
+.tree-toggle {
+  width: 14px; min-width: 14px;
+  color: var(--dim);
+  font-size: 10px;
+  padding-top: 1px;
+  flex-shrink: 0;
+}
+
+.tree-node-content { flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+
+.id-chip {
+  font-size: 10px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+
+.node-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-children { padding-left: 18px; }
+
+/* ── Kanban View ──────────────────────────────────────────────────── */
+#kanban-view {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  align-items: flex-start;
+}
+
+.kanban-col {
+  min-width: 220px;
+  width: 220px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.kanban-col-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.kanban-col-count {
+  font-size: 10px;
+  color: var(--dim);
+  background: var(--bg3);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.kanban-cards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.kanban-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+  user-select: none;
+}
+.kanban-card:hover { border-color: var(--green); }
+.kanban-card.sortable-ghost { opacity: 0.4; }
+.kanban-card.sortable-drag { transform: rotate(1deg); box-shadow: 0 4px 20px rgba(0,255,65,0.2); }
+
+.card-header { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; flex-wrap: wrap; }
+.card-title { color: var(--text); font-size: 12px; margin-top: 3px; line-height: 1.4; }
+
+.card-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+
+.subtask-bar-wrap { margin-top: 6px; }
+.subtask-bar-label { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+.subtask-bar-bg { height: 3px; background: var(--dim2); border-radius: 2px; }
+.subtask-bar-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; }
+
+/* ── Badges / Chips ───────────────────────────────────────────────── */
+.badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.badge-type-milestone  { background: rgba(187,134,252,0.2); color: var(--purple); border: 1px solid var(--purple); }
+.badge-type-design_doc { background: rgba(79,195,247,0.2); color: var(--blue);   border: 1px solid var(--blue); }
+.badge-type-task       { background: rgba(0,229,255,0.2);  color: var(--cyan);   border: 1px solid var(--cyan); }
+
+.badge-status-new        { color: var(--text-dim); border: 1px solid var(--dim); }
+.badge-status-in_progress { color: var(--yellow);  border: 1px solid var(--yellow); background: rgba(255,215,0,0.08); }
+.badge-status-on_hold    { color: var(--orange);   border: 1px solid var(--orange); background: rgba(255,140,0,0.08); }
+.badge-status-rejected   { color: var(--red);      border: 1px solid var(--red);    background: rgba(255,68,68,0.08); }
+.badge-status-closed     { color: var(--green);    border: 1px solid var(--green);  background: rgba(0,255,65,0.08); }
+
+.badge-priority-low    { color: var(--dim); }
+.badge-priority-medium { color: var(--yellow); }
+.badge-priority-high   { color: var(--red); }
+
+.tag-chip {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: rgba(68,68,68,0.4);
+  border: 1px solid var(--dim);
+  color: var(--text-dim);
+  border-radius: 2px;
+}
+
+/* ── Item Detail Panel ────────────────────────────────────────────── */
+#detail-panel {
+  width: 380px;
+  min-width: 320px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease;
+  position: relative;
+}
+
+#detail-resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 10;
+}
+#detail-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+#detail-resize-handle:hover::after,
+#detail-resize-handle.dragging::after { background: var(--green); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+#detail-panel.hidden { display: none; }
+
+#detail-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+#detail-id { color: var(--dim); font-size: 11px; }
+#detail-type-badge { }
+
+#btn-close-detail {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+#btn-close-detail:hover { color: var(--red); }
+
+#detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field-group { display: flex; flex-direction: column; gap: 4px; }
+
+.field-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.field-input {
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 7px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.field-input:focus { outline: none; border-color: var(--green); color: var(--green); }
+
+.field-select {
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 7px;
+  width: 100%;
+  cursor: pointer;
+}
+.field-select:focus { outline: 1px solid var(--green); }
+
+.field-textarea {
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 7px;
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.field-textarea:focus { outline: none; border-color: var(--green); }
+
+/* inline row: two fields side by side */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Tags input */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  padding: 4px;
+  min-height: 32px;
+  cursor: text;
+}
+.tags-container:focus-within { border-color: var(--green); }
+
+.tag-entry {
+  font-size: 10px;
+  padding: 2px 5px;
+  background: rgba(68,68,68,0.5);
+  border: 1px solid var(--dim);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.tag-remove {
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1;
+}
+.tag-remove:hover { color: var(--red); }
+
+.tag-input {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 11px;
+  outline: none;
+  flex: 1;
+  min-width: 60px;
+}
+
+/* Milestone completion bar */
+.milestone-progress {
+  margin-top: 2px;
+}
+.milestone-progress-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.progress-bar-bg {
+  height: 4px;
+  background: var(--dim2);
+  border-radius: 2px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+
+/* Subtasks */
+.subtasks-list { display: flex; flex-direction: column; gap: 4px; }
+
+.subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+}
+.subtask-check {
+  accent-color: var(--green);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.subtask-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  background: none;
+  border: none;
+  font-family: var(--font);
+  outline: none;
+  cursor: text;
+}
+.subtask-text.done { color: var(--dim); text-decoration: line-through; }
+
+.subtask-del {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 0;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.subtask-del:hover { color: var(--red); }
+
+.btn-add-subtask {
+  background: none;
+  border: 1px dashed var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  text-align: left;
+}
+.btn-add-subtask:hover { border-color: var(--green); color: var(--green); }
+
+/* Relations */
+.relations-list { display: flex; flex-direction: column; gap: 4px; }
+
+.relation-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.relation-chip:hover { border-color: var(--blue); }
+
+.relation-type-label {
+  font-size: 9px;
+  color: var(--orange);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.relation-target { flex: 1; font-size: 11px; color: var(--blue); }
+.relation-del {
+  background: none; border: none; color: var(--dim);
+  cursor: pointer; font-family: var(--font); font-size: 13px;
+  padding: 0; flex-shrink: 0;
+}
+.relation-del:hover { color: var(--red); }
+
+.add-relation-row { display: flex; gap: 4px; align-items: center; }
+.add-relation-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 6px;
+}
+.add-relation-input:focus { outline: 1px solid var(--green); }
+.add-relation-type {
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.btn-add-relation {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-add-relation:hover { border-color: var(--green); color: var(--green); }
+
+/* Linked-by section */
+.linked-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.linked-item:hover { color: var(--blue); }
+
+/* Section headers in detail panel */
+.section-header {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+/* Save / Delete buttons */
+#detail-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-save {
+  flex: 1;
+  padding: 7px;
+  background: none;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+.btn-save:hover { background: var(--green); color: var(--bg); }
+
+.btn-delete {
+  padding: 7px 12px;
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+.btn-delete:hover { border-color: var(--red); color: var(--red); }
+
+/* ── Modal ────────────────────────────────────────────────────────── */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+#modal-overlay.visible { display: flex; }
+
+#modal-box {
+  background: var(--bg2);
+  border: 1px solid var(--green);
+  padding: 24px;
+  min-width: 320px;
+  max-width: 500px;
+  width: 90%;
+  animation: fadeIn 0.15s ease;
+}
+
+#modal-title {
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.modal-field { margin-bottom: 12px; }
+.modal-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block; }
+
+.modal-input, .modal-select {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.modal-input:focus, .modal-select:focus { outline: 1px solid var(--green); }
+
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+.modal-btn {
+  padding: 6px 16px;
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.modal-btn.primary { border-color: var(--green); color: var(--green); }
+.modal-btn:hover { background: var(--dim); color: var(--text); }
+.modal-btn.primary:hover { background: var(--green); color: var(--bg); }
+
+/* ── Column editor ────────────────────────────────────────────────── */
+.col-editor-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; min-height: 32px; }
+
+.col-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  cursor: grab;
+}
+.col-editor-row:active { cursor: grabbing; }
+.col-editor-row.sortable-ghost { opacity: 0.35; }
+
+.col-drag-handle {
+  color: var(--dim);
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.col-name-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  outline: none;
+}
+.col-name-input:focus { color: var(--green); }
+
+.col-del-btn {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.col-del-btn:hover { color: var(--red); }
+
+.col-add-row { display: flex; gap: 6px; align-items: center; }
+.col-add-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--dim);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 7px;
+}
+.col-add-input:focus { outline: 1px solid var(--green); }
+.col-add-btn {
+  background: none;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.col-add-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* ── Toast ────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg2);
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 8px 14px;
+  z-index: 2000;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+#toast.error { border-color: var(--red); color: var(--red); }
+#toast.visible { opacity: 1; transform: translateY(0); }
+
+/* ── Empty states ─────────────────────────────────────────────────── */
+.empty-state {
+  color: var(--dim);
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 12px;
+  line-height: 2;
+}
+
+/* ── Misc ─────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+select option { background: #1a1a1a; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h1>Gamescape</h1>
+      <p>project manager</p>
+    </div>
+    <div id="project-list"></div>
+    <button id="btn-new-project">+ New Project</button>
+  </aside>
+
+  <!-- Main area -->
+  <div id="main-area">
+    <!-- Topbar -->
+    <div id="topbar">
+      <span id="active-project-name">— no project —</span>
+      <button class="view-btn active" id="btn-tree" onclick="setView('tree')">Tree</button>
+      <button class="view-btn" id="btn-kanban" onclick="setView('kanban')">Kanban</button>
+      <div id="filter-wrap">
+        <button id="filter-btn" class="view-btn" onclick="toggleFilterDropdown()">
+          Filter<span id="filter-count-badge" class="filter-count-badge hidden"></span>
+        </button>
+        <div id="filter-dropdown" class="hidden"></div>
+      </div>
+      <button id="btn-columns" class="view-btn hidden" onclick="openColumnsEditor()" title="Configure kanban columns">&#8801; Columns</button>
+      <button id="btn-new-item" onclick="openNewItemModal()">+ Item</button>
+    </div>
+
+    <!-- Content area (view + detail panel) -->
+    <div id="content-area">
+      <div id="view-container">
+        <!-- Tree View -->
+        <div id="tree-view" class="hidden"></div>
+        <!-- Kanban View -->
+        <div id="kanban-view" class="hidden"></div>
+      </div>
+
+      <!-- Detail Panel -->
+      <div id="detail-panel" class="hidden">
+        <div id="detail-resize-handle"></div>
+        <div id="detail-header">
+          <span id="detail-id"></span>
+          <span id="detail-type-badge"></span>
+          <button id="btn-close-detail" onclick="closeDetail()">&#10005;</button>
+        </div>
+        <div id="detail-body"></div>
+        <div id="detail-footer">
+          <button class="btn-save" onclick="saveDetail()">Save</button>
+          <button class="btn-delete" onclick="deleteCurrentItem()">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" onclick="handleModalOverlayClick(event)">
+  <div id="modal-box">
+    <div id="modal-title"></div>
+    <div id="modal-content"></div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn primary" id="modal-confirm" onclick="confirmModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════
+
+let projects      = [];
+let activeProject = null;
+let allItems      = [];  // loaded items for active project
+let currentView   = 'tree';
+let selectedItemId = null;
+let treeExpanded  = {};  // milestoneId -> bool
+let modalConfirmFn = null;
+let sortableInstances = [];
+
+// ════════════════════════════════════════════════════════════════════
+// BOOTSTRAP
+// ════════════════════════════════════════════════════════════════════
+
+async function init() {
+  await loadProjects();
+  if (projects.length > 0) selectProject(projects[0]);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// API HELPERS
+// ════════════════════════════════════════════════════════════════════
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROJECTS
+// ════════════════════════════════════════════════════════════════════
+
+async function loadProjects() {
+  projects = await api('GET', '/api/projects');
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('project-list');
+  list.innerHTML = '';
+  projects.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'project-item' + (activeProject && activeProject.id === p.id ? ' active' : '');
+    el.innerHTML = `
+      <span class="project-item-name">${esc(p.name)}</span>
+      <button class="project-delete-btn" onclick="deleteProject(event, ${p.id})" title="Delete project">&#10005;</button>
+    `;
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('project-delete-btn')) return;
+      selectProject(p);
+    });
+    list.appendChild(el);
+  });
+}
+
+async function selectProject(p) {
+  activeProject = p;
+  selectedItemId = null;
+  document.getElementById('active-project-name').textContent = p.name;
+  renderSidebar();
+  closeDetail();
+  activeFilters.types.clear();
+  activeFilters.statuses.clear();
+  activeFilters.tags.clear();
+  activeFilters.priorities.clear();
+  updateFilterButton();
+  closeFilterDropdown();
+  await loadItems();
+  renderView();
+}
+
+document.getElementById('btn-new-project').addEventListener('click', () => {
+  openModal('New Project', `
+    <div class="modal-field">
+      <label class="modal-label">Project Name</label>
+      <input class="modal-input" id="new-proj-name" placeholder="My Awesome Game" autofocus>
+    </div>
+  `, async () => {
+    const name = document.getElementById('new-proj-name').value.trim();
+    if (!name) { showToast('Name required', true); return false; }
+    const p = await api('POST', '/api/projects', { name });
+    await loadProjects();
+    selectProject(p);
+  });
+  setTimeout(() => document.getElementById('new-proj-name')?.focus(), 50);
+});
+
+async function deleteProject(e, id) {
+  e.stopPropagation();
+  const p = projects.find(x => x.id === id);
+  if (!confirm(`Delete project "${p.name}" and all its items?`)) return;
+  await api('DELETE', `/api/projects/${id}`);
+  if (activeProject && activeProject.id === id) {
+    activeProject = null;
+    allItems = [];
+    document.getElementById('active-project-name').textContent = '— no project —';
+    clearViews();
+    closeDetail();
+  }
+  await loadProjects();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ITEMS
+// ════════════════════════════════════════════════════════════════════
+
+async function loadItems() {
+  if (!activeProject) { allItems = []; return; }
+  allItems = await api('GET', `/api/projects/${activeProject.id}/items`);
+}
+
+let activeFilters = { types: new Set(), statuses: new Set(), tags: new Set(), priorities: new Set() };
+let _filterValues = {};
+
+function getFilteredItems() {
+  return allItems.filter(i => {
+    if (activeFilters.types.size > 0      && !activeFilters.types.has(i.type))                             return false;
+    if (activeFilters.statuses.size > 0   && !activeFilters.statuses.has(i.status))                       return false;
+    if (activeFilters.priorities.size > 0 && !activeFilters.priorities.has(i.priority))                   return false;
+    if (activeFilters.tags.size > 0       && !(i.tags || []).some(t => activeFilters.tags.has(t)))        return false;
+    return true;
+  });
+}
+
+function applyFilters() { renderView(); }
+
+function toggleFilterDropdown() {
+  const dd = document.getElementById('filter-dropdown');
+  if (dd.classList.contains('hidden')) {
+    renderFilterDropdown();
+    dd.classList.remove('hidden');
+  } else {
+    dd.classList.add('hidden');
+  }
+}
+
+function closeFilterDropdown() {
+  document.getElementById('filter-dropdown')?.classList.add('hidden');
+}
+
+function renderFilterDropdown() {
+  _filterValues = {};
+  let key = 0;
+  const allTags = [...new Set(allItems.flatMap(i => i.tags || []))].sort();
+
+  function chip(cat, value, label) {
+    const k = 'fv' + (key++);
+    _filterValues[k] = { cat, value };
+    const active = activeFilters[cat].has(value);
+    return `<button class="filter-chip${active ? ' active' : ''}" onclick="pickFilter('${k}')">${esc(label)}</button>`;
+  }
+
+  const types      = [['milestone','Milestone'],['design_doc','Design Doc'],['task','Task']];
+  const statuses   = ['New','In Progress','On Hold','Rejected','Closed'];
+  const priorities = ['Low','Medium','High'];
+
+  let html = `
+    <div>
+      <div class="filter-section-label">Object Type</div>
+      <div class="filter-chips">${types.map(([v,l]) => chip('types', v, l)).join('')}</div>
+    </div>
+    <hr class="filter-divider">
+    <div>
+      <div class="filter-section-label">Status</div>
+      <div class="filter-chips">${statuses.map(s => chip('statuses', s, s)).join('')}</div>
+    </div>
+    <hr class="filter-divider">
+    <div>
+      <div class="filter-section-label">Priority</div>
+      <div class="filter-chips">${priorities.map(p => chip('priorities', p, p)).join('')}</div>
+    </div>`;
+
+  if (allTags.length > 0) {
+    html += `
+    <hr class="filter-divider">
+    <div>
+      <div class="filter-section-label">Tag</div>
+      <div class="filter-chips">${allTags.map(t => chip('tags', t, t)).join('')}</div>
+    </div>`;
+  }
+
+  html += `<hr class="filter-divider"><button class="btn-clear-filters" onclick="clearFilters()">Clear All</button>`;
+  document.getElementById('filter-dropdown').innerHTML = html;
+}
+
+function pickFilter(k) {
+  const { cat, value } = _filterValues[k];
+  if (activeFilters[cat].has(value)) activeFilters[cat].delete(value);
+  else activeFilters[cat].add(value);
+  renderFilterDropdown();
+  updateFilterButton();
+  renderView();
+}
+
+function clearFilters() {
+  activeFilters.types.clear();
+  activeFilters.statuses.clear();
+  activeFilters.tags.clear();
+  activeFilters.priorities.clear();
+  renderFilterDropdown();
+  updateFilterButton();
+  renderView();
+}
+
+function updateFilterButton() {
+  const count = activeFilters.types.size + activeFilters.statuses.size + activeFilters.tags.size + activeFilters.priorities.size;
+  const btn   = document.getElementById('filter-btn');
+  const badge = document.getElementById('filter-count-badge');
+  btn.classList.toggle('has-filters', count > 0);
+  badge.textContent = count;
+  badge.classList.toggle('hidden', count === 0);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// VIEWS
+// ════════════════════════════════════════════════════════════════════
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btn-tree').classList.toggle('active', v === 'tree');
+  document.getElementById('btn-kanban').classList.toggle('active', v === 'kanban');
+  document.getElementById('btn-columns').classList.toggle('hidden', v !== 'kanban');
+  renderView();
+}
+
+function renderView() {
+  if (!activeProject) { clearViews(); return; }
+  if (currentView === 'tree') renderTree();
+  else renderKanban();
+}
+
+function clearViews() {
+  document.getElementById('tree-view').innerHTML = '<div class="empty-state">No project selected.</div>';
+  document.getElementById('kanban-view').innerHTML = '';
+  document.getElementById('tree-view').classList.remove('hidden');
+  document.getElementById('kanban-view').classList.add('hidden');
+}
+
+// ── Tree ──────────────────────────────────────────────────────────
+
+function renderTree() {
+  const tv = document.getElementById('tree-view');
+  document.getElementById('kanban-view').classList.add('hidden');
+  tv.classList.remove('hidden');
+
+  const items = getFilteredItems();
+
+  if (items.length === 0) {
+    tv.innerHTML = '<div class="empty-state">No items yet.<br>Click <b>+ Item</b> to create one.</div>';
+    return;
+  }
+
+  const milestones  = items.filter(i => i.type === 'milestone');
+  const designDocs  = items.filter(i => i.type === 'design_doc');
+  const tasks       = items.filter(i => i.type === 'task');
+
+  // Build a set of milestone IDs present in the current filtered view
+  const milestoneIdSet = new Set(milestones.map(m => m.id));
+
+  let html = '';
+
+  // Milestones with nested design docs AND nested tasks
+  milestones.forEach(m => {
+    const expanded   = treeExpanded[m.id] !== false; // default expanded
+    const childDocs  = designDocs.filter(d => d.milestoneId === m.id);
+    const childTasks = tasks.filter(t => t.milestoneId === m.id);
+    const mPct       = milestonePercent(m);
+    const hasChildren = childDocs.length > 0 || childTasks.length > 0;
+
+    html += `<div class="tree-section">`;
+    html += `<div class="tree-node${selectedItemId === m.id ? ' selected' : ''}" data-id="${m.id}" onclick="handleTreeClick(event, ${m.id})">`;
+    html += `<span class="tree-toggle">${hasChildren ? (expanded ? '&#9660;' : '&#9654;') : ''}</span>`;
+    html += `<span class="tree-node-content">`;
+    html += `<span class="id-chip">#${m.id}</span>`;
+    html += `<span class="badge badge-type-milestone">M</span>`;
+    html += `<span class="node-title">${esc(m.title)}</span>`;
+    html += statusBadge(m.status);
+    html += priorityBadge(m.priority);
+    if (m.subtasks && m.subtasks.length > 0) {
+      const done = m.subtasks.filter(s => s.done).length;
+      html += `<span style="font-size:10px;color:var(--dim)">[${done}/${m.subtasks.length}]</span>`;
+    }
+    if (mPct !== null) html += `<span style="font-size:10px;color:var(--accent)">${mPct}%</span>`;
+    html += `</span></div>`;
+
+    if (expanded && hasChildren) {
+      html += `<div class="tree-children" id="children-${m.id}">`;
+      childDocs.forEach(d => { html += renderTreeNode(d); });
+      childTasks.forEach(t => { html += renderTreeNode(t); });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  });
+
+  // Design docs not attached to any milestone visible in the current filtered view
+  const orphanDocs = designDocs.filter(d => !d.milestoneId || !milestoneIdSet.has(d.milestoneId));
+  if (orphanDocs.length) {
+    html += `<div class="tree-section">`;
+    orphanDocs.forEach(d => { html += renderTreeNode(d); });
+    html += `</div>`;
+  }
+
+  // Free-floating tasks (no milestoneId, or milestoneId not in the visible set)
+  const floatingTasks = tasks.filter(t => !t.milestoneId || !milestoneIdSet.has(t.milestoneId));
+  if (floatingTasks.length) {
+    html += `<div class="tree-section">`;
+    floatingTasks.forEach(t => { html += renderTreeNode(t); });
+    html += `</div>`;
+  }
+
+  tv.innerHTML = html;
+}
+
+function renderTreeNode(item) {
+  let html = `<div class="tree-node${selectedItemId === item.id ? ' selected' : ''}" data-id="${item.id}" onclick="handleTreeClick(event, ${item.id})">`;
+  html += `<span class="tree-toggle"></span>`;
+  html += `<span class="tree-node-content">`;
+  html += `<span class="id-chip">#${item.id}</span>`;
+  if (item.type === 'design_doc') html += `<span class="badge badge-type-design_doc">DD</span>`;
+  if (item.type === 'task')       html += `<span class="badge badge-type-task">T</span>`;
+  html += `<span class="node-title">${esc(item.title)}</span>`;
+  html += statusBadge(item.status);
+  html += priorityBadge(item.priority);
+  if (item.subtasks && item.subtasks.length > 0) {
+    const done = item.subtasks.filter(s => s.done).length;
+    html += `<span style="font-size:10px;color:var(--dim)">[${done}/${item.subtasks.length}]</span>`;
+  }
+  html += `</span></div>`;
+  return html;
+}
+
+function handleTreeClick(e, id) {
+  // Toggle expand/collapse for milestones
+  const item = allItems.find(i => i.id === id);
+  if (item && item.type === 'milestone') {
+    const isToggle = e.target.classList.contains('tree-toggle') || e.target.closest('.tree-toggle');
+    if (isToggle) {
+      treeExpanded[id] = !(treeExpanded[id] !== false);
+      renderTree();
+      return;
+    }
+  }
+  openDetail(id);
+}
+
+// ── Kanban ────────────────────────────────────────────────────────
+
+function renderKanban() {
+  const kv = document.getElementById('kanban-view');
+  document.getElementById('tree-view').classList.add('hidden');
+  kv.classList.remove('hidden');
+
+  // Destroy previous sortable instances
+  sortableInstances.forEach(s => s.destroy());
+  sortableInstances = [];
+
+  const columns = activeProject.kanbanColumns || ['New', 'In Progress', 'On Hold', 'Rejected', 'Closed'];
+  const items   = getFilteredItems();
+
+  kv.innerHTML = '';
+
+  columns.forEach(col => {
+    const colItems = items.filter(i => i.status === col);
+    const colEl = document.createElement('div');
+    colEl.className = 'kanban-col';
+    colEl.innerHTML = `
+      <div class="kanban-col-header">
+        <span>${esc(col)}</span>
+        <span class="kanban-col-count">${colItems.length}</span>
+      </div>
+      <div class="kanban-cards" data-column="${esc(col)}">
+        ${colItems.map(i => renderKanbanCard(i)).join('')}
+      </div>
+    `;
+    kv.appendChild(colEl);
+
+    const cardsEl = colEl.querySelector('.kanban-cards');
+    const sortable = Sortable.create(cardsEl, {
+      group: 'kanban',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      onEnd: async (evt) => {
+        const itemId = parseInt(evt.item.dataset.id);
+        const newStatus = evt.to.dataset.column;
+        await moveCardToStatus(itemId, newStatus);
+      }
+    });
+    sortableInstances.push(sortable);
+  });
+}
+
+function renderKanbanCard(item) {
+  const tagsHtml = (item.tags || []).map(t =>
+    `<span class="tag-chip">${esc(t)}</span>`
+  ).join('');
+
+  let subtaskBar = '';
+  if (item.subtasks && item.subtasks.length > 0) {
+    const done = item.subtasks.filter(s => s.done).length;
+    const pct  = Math.round((done / item.subtasks.length) * 100);
+    subtaskBar = `
+      <div class="subtask-bar-wrap">
+        <div class="subtask-bar-label">${done}/${item.subtasks.length} subtasks</div>
+        <div class="subtask-bar-bg"><div class="subtask-bar-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+
+  let typeBadge = '';
+  if (item.type === 'milestone')  typeBadge = `<span class="badge badge-type-milestone">M</span>`;
+  if (item.type === 'design_doc') typeBadge = `<span class="badge badge-type-design_doc">DD</span>`;
+  if (item.type === 'task')       typeBadge = `<span class="badge badge-type-task">T</span>`;
+
+  return `
+    <div class="kanban-card" data-id="${item.id}" onclick="openDetail(${item.id})">
+      <div class="card-header">
+        <span class="id-chip">#${item.id}</span>
+        ${typeBadge}
+        ${priorityBadge(item.priority)}
+      </div>
+      <div class="card-title">${esc(item.title)}</div>
+      ${tagsHtml ? `<div class="card-tags">${tagsHtml}</div>` : ''}
+      ${subtaskBar}
+    </div>`;
+}
+
+async function moveCardToStatus(itemId, newStatus) {
+  const item = allItems.find(i => i.id === itemId);
+  if (!item || item.status === newStatus) return;
+
+  try {
+    const updated = await api('PUT', `/api/projects/${activeProject.id}/items/${itemId}`, { status: newStatus });
+    Object.assign(item, updated);
+    if (newStatus === 'Closed') fireConfetti();
+    renderView(); // re-render to update counts and any detail panel
+    if (selectedItemId === itemId) openDetail(itemId);
+  } catch (err) {
+    showToast(err.message, true);
+    renderView(); // revert visual
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// KANBAN COLUMN EDITOR
+// ════════════════════════════════════════════════════════════════════
+
+function openColumnsEditor() {
+  if (!activeProject) return;
+
+  const cols = activeProject.kanbanColumns || ['New', 'In Progress', 'On Hold', 'Rejected', 'Closed'];
+
+  function buildColEditorHTML(columns) {
+    const rows = columns.map((c, i) =>
+      `<div class="col-editor-row" data-index="${i}">
+        <span class="col-drag-handle">&#8801;</span>
+        <input class="col-name-input" value="${esc(c)}" data-col-input>
+        <button class="col-del-btn" onclick="colEditorRemoveRow(this)" title="Remove column">&#10005;</button>
+      </div>`
+    ).join('');
+    return `
+      <div class="col-editor-list" id="col-editor-list">${rows}</div>
+      <div class="col-add-row">
+        <input class="col-add-input" id="col-add-input" placeholder="New column name">
+        <button class="col-add-btn" onclick="colEditorAddRow()">+ Add</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:8px">
+        Drag to reorder. Items in removed columns keep their status value but won't appear in a column.
+      </div>`;
+  }
+
+  openModal('Configure Columns', buildColEditorHTML(cols), async () => {
+    const rows = document.querySelectorAll('#col-editor-list .col-editor-row');
+    const newCols = Array.from(rows)
+      .map(r => r.querySelector('[data-col-input]').value.trim())
+      .filter(v => v.length > 0);
+
+    if (newCols.length === 0) {
+      showToast('At least one column is required', true);
+      return false;
+    }
+
+    try {
+      const updated = await api('PUT', `/api/projects/${activeProject.id}/columns`, { columns: newCols });
+      activeProject.kanbanColumns = updated.kanbanColumns;
+      // Also update in the projects array so the sidebar reflects it
+      const pInList = projects.find(p => p.id === activeProject.id);
+      if (pInList) pInList.kanbanColumns = updated.kanbanColumns;
+      renderView();
+      showToast('Columns saved.');
+    } catch (err) {
+      showToast(err.message, true);
+      return false;
+    }
+  });
+
+  // After modal renders, initialise SortableJS on the list
+  setTimeout(() => {
+    const listEl = document.getElementById('col-editor-list');
+    if (listEl) {
+      Sortable.create(listEl, {
+        animation: 120,
+        handle: '.col-drag-handle',
+        ghostClass: 'sortable-ghost',
+      });
+    }
+    document.getElementById('col-add-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); colEditorAddRow(); }
+    });
+  }, 40);
+}
+
+function colEditorAddRow() {
+  const input = document.getElementById('col-add-input');
+  const val = input ? input.value.trim() : '';
+  if (!val) return;
+  const list = document.getElementById('col-editor-list');
+  const div = document.createElement('div');
+  div.className = 'col-editor-row';
+  div.innerHTML = `
+    <span class="col-drag-handle">&#8801;</span>
+    <input class="col-name-input" value="${esc(val)}" data-col-input>
+    <button class="col-del-btn" onclick="colEditorRemoveRow(this)" title="Remove column">&#10005;</button>`;
+  list.appendChild(div);
+  if (input) input.value = '';
+  input?.focus();
+}
+
+function colEditorRemoveRow(btn) {
+  const row = btn.closest('.col-editor-row');
+  if (row) row.remove();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DETAIL PANEL
+// ════════════════════════════════════════════════════════════════════
+
+function openDetail(id) {
+  selectedItemId = id;
+  const item = allItems.find(i => i.id === id);
+  if (!item) return;
+
+  // Update selected highlight in tree
+  document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+  const node = document.querySelector(`.tree-node[data-id="${id}"]`);
+  if (node) node.classList.add('selected');
+
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+  // Re-trigger animation
+  panel.style.animation = 'none';
+  panel.offsetHeight;
+  panel.style.animation = '';
+
+  document.getElementById('detail-id').textContent = `#${item.id}`;
+  document.getElementById('detail-type-badge').outerHTML = `<span id="detail-type-badge">${typeBadgeHTML(item.type)}</span>`;
+
+  const body = document.getElementById('detail-body');
+  body.innerHTML = buildDetailBody(item);
+
+  // Attach tag input handler
+  setupTagInput(item);
+}
+
+function buildDetailBody(item) {
+  const milestones = allItems.filter(i => i.type === 'milestone');
+  const mPct = item.type === 'milestone' ? milestonePercent(item) : null;
+
+  let html = '';
+
+  // Title
+  html += `
+    <div class="field-group">
+      <label class="field-label">Title</label>
+      <input class="field-input" id="d-title" value="${esc(item.title)}">
+    </div>`;
+
+  // Status + Priority in a row
+  html += `<div class="field-row">
+    <div class="field-group">
+      <label class="field-label">Status</label>
+      <select class="field-select" id="d-status">
+        ${['New','In Progress','On Hold','Rejected','Closed'].map(s =>
+          `<option value="${s}"${item.status === s ? ' selected' : ''}>${s}</option>`
+        ).join('')}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Priority</label>
+      <select class="field-select" id="d-priority">
+        ${['Low','Medium','High'].map(p =>
+          `<option value="${p}"${item.priority === p ? ' selected' : ''}>${p}</option>`
+        ).join('')}
+      </select>
+    </div>
+  </div>`;
+
+  // Design Doc extras
+  if (item.type === 'design_doc') {
+    html += `<div class="field-row">
+      <div class="field-group">
+        <label class="field-label">Implementation</label>
+        <select class="field-select" id="d-implementation">
+          <option value="Optional"${item.implementation === 'Optional' ? ' selected' : ''}>Optional</option>
+          <option value="Required"${item.implementation === 'Required' ? ' selected' : ''}>Required</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Milestone</label>
+        <select class="field-select" id="d-milestone-id">
+          <option value="">— none —</option>
+          ${milestones.map(m =>
+            `<option value="${m.id}"${item.milestoneId === m.id ? ' selected' : ''}>#${m.id} ${esc(m.title)}</option>`
+          ).join('')}
+        </select>
+      </div>
+    </div>`;
+  }
+
+  // Task milestone link
+  if (item.type === 'task') {
+    html += `<div class="field-group">
+      <label class="field-label">Milestone</label>
+      <select class="field-select" id="d-milestone-id">
+        <option value="">— free-floating —</option>
+        ${milestones.map(m =>
+          `<option value="${m.id}"${item.milestoneId === m.id ? ' selected' : ''}>#${m.id} ${esc(m.title)}</option>`
+        ).join('')}
+      </select>
+    </div>`;
+  }
+
+  // Milestone completion bar
+  if (item.type === 'milestone' && mPct !== null) {
+    html += `<div class="milestone-progress">
+      <div class="milestone-progress-label">Completion: ${mPct}% (from linked tasks)</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${mPct}%"></div></div>
+    </div>`;
+  }
+
+  // Tags
+  html += `<div class="field-group">
+    <label class="field-label">Tags</label>
+    <div class="tags-container" id="tags-container">
+      ${(item.tags || []).map(t =>
+        `<span class="tag-entry">${esc(t)}<span class="tag-remove" onclick="removeTag(this,'${esc(t)}')">&times;</span></span>`
+      ).join('')}
+      <input class="tag-input" id="tag-input" placeholder="add tag, press Enter">
+    </div>
+  </div>`;
+
+  // Description
+  html += `<div class="field-group">
+    <label class="field-label">Description</label>
+    <textarea class="field-textarea" id="d-description">${esc(item.description || '')}</textarea>
+  </div>`;
+
+  // Subtasks
+  html += `<div class="field-group">
+    <div class="section-header">Subtasks</div>`;
+  if (item.subtasks && item.subtasks.length > 0) {
+    const done = item.subtasks.filter(s => s.done).length;
+    const pct  = Math.round((done / item.subtasks.length) * 100);
+    html += `<div class="subtask-bar-wrap">
+      <div class="subtask-bar-label">${done}/${item.subtasks.length} complete</div>
+      <div class="subtask-bar-bg"><div class="subtask-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }
+  html += `<div class="subtasks-list" id="subtasks-list">`;
+  (item.subtasks || []).forEach((st, idx) => {
+    html += subtaskRowHTML(st, idx);
+  });
+  html += `</div>
+    <button class="btn-add-subtask" onclick="addSubtask()">+ Add Subtask</button>
+  </div>`;
+
+  // Relations
+  html += `<div class="field-group">
+    <div class="section-header">Relations</div>
+    <div class="relations-list" id="relations-list">`;
+  (item.relations || []).forEach(r => {
+    html += relationChipHTML(r);
+  });
+  html += `</div>
+    <div class="add-relation-row">
+      <input class="add-relation-input" id="rel-target-input" placeholder="#id or title">
+      <select class="add-relation-type" id="rel-type-select">
+        <option value="blocked_by">Blocked By</option>
+        <option value="related_to">Related To</option>
+      </select>
+      <button class="btn-add-relation" onclick="addRelation()">Add</button>
+    </div>
+  </div>`;
+
+  // Linked by (reverse relations)
+  const linkedBy = allItems.filter(i =>
+    i.id !== item.id &&
+    (i.relations || []).some(r => r.targetId === item.id)
+  );
+  if (linkedBy.length > 0) {
+    html += `<div class="field-group">
+      <div class="section-header">Referenced By</div>`;
+    linkedBy.forEach(li => {
+      html += `<div class="linked-item" onclick="openDetail(${li.id})">
+        <span class="id-chip">#${li.id}</span>
+        ${typeBadgeHTML(li.type)}
+        <span>${esc(li.title)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Timestamps
+  html += `<div style="font-size:10px;color:var(--dim);line-height:1.8">
+    Created: ${new Date(item.createdAt).toLocaleString()}<br>
+    Updated: ${new Date(item.updatedAt).toLocaleString()}
+  </div>`;
+
+  return html;
+}
+
+function subtaskRowHTML(st, idx) {
+  return `<div class="subtask-row" data-idx="${idx}">
+    <input type="checkbox" class="subtask-check" ${st.done ? 'checked' : ''} onchange="toggleSubtask(${idx}, this.checked)">
+    <input type="text" class="subtask-text${st.done ? ' done' : ''}" value="${esc(st.text)}" oninput="editSubtaskText(${idx}, this.value)" onblur="editSubtaskText(${idx}, this.value)">
+    <button class="subtask-del" onclick="removeSubtask(${idx})">&#10005;</button>
+  </div>`;
+}
+
+function relationChipHTML(r) {
+  const target = allItems.find(i => i.id === r.targetId);
+  const label  = target ? `#${target.id} ${esc(target.title)}` : `#${r.targetId}`;
+  const typeLabel = r.type === 'blocked_by' ? 'blocked by' : 'related to';
+  return `<div class="relation-chip" data-target="${r.targetId}">
+    <span class="relation-type-label">${typeLabel}</span>
+    <span class="relation-target" onclick="openDetail(${r.targetId})">${label}</span>
+    <button class="relation-del" onclick="removeRelation(${r.targetId})">&#10005;</button>
+  </div>`;
+}
+
+function closeDetail() {
+  selectedItemId = null;
+  document.getElementById('detail-panel').classList.add('hidden');
+  document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+}
+
+// ── Detail: Tags ──────────────────────────────────────────────────
+
+function setupTagInput(item) {
+  const input = document.getElementById('tag-input');
+  if (!input) return;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = input.value.trim().replace(/,/g, '');
+      if (!val) return;
+      input.value = '';
+      addTagToDetail(val);
+    } else if (e.key === 'Backspace' && !input.value) {
+      const container = document.getElementById('tags-container');
+      const entries = container.querySelectorAll('.tag-entry');
+      if (entries.length > 0) {
+        const last = entries[entries.length - 1];
+        last.remove();
+      }
+    }
+  });
+}
+
+function addTagToDetail(tag) {
+  const container = document.getElementById('tags-container');
+  const input = document.getElementById('tag-input');
+  const span = document.createElement('span');
+  span.className = 'tag-entry';
+  span.innerHTML = `${esc(tag)}<span class="tag-remove" onclick="removeTag(this,'${esc(tag)}')">&times;</span>`;
+  container.insertBefore(span, input);
+}
+
+function removeTag(el, tag) {
+  el.parentElement.remove();
+}
+
+function getCurrentTags() {
+  const container = document.getElementById('tags-container');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.tag-entry')).map(el => el.childNodes[0].textContent.trim());
+}
+
+// ── Detail: Subtasks ──────────────────────────────────────────────
+
+function getSubtasksFromDOM() {
+  const rows = document.querySelectorAll('#subtasks-list .subtask-row');
+  return Array.from(rows).map(row => ({
+    text: row.querySelector('.subtask-text').value,
+    done: row.querySelector('.subtask-check').checked
+  }));
+}
+
+function addSubtask() {
+  const list = document.getElementById('subtasks-list');
+  const idx = list.querySelectorAll('.subtask-row').length;
+  const div = document.createElement('div');
+  div.className = 'subtask-row';
+  div.dataset.idx = idx;
+  div.innerHTML = subtaskRowHTML({ text: '', done: false }, idx);
+  list.appendChild(div);
+  div.querySelector('.subtask-text').focus();
+}
+
+function toggleSubtask(idx, done) {
+  const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
+  if (row) row.querySelector('.subtask-text').classList.toggle('done', done);
+}
+
+function editSubtaskText(idx, val) {
+  // The value is bound via oninput; nothing needed beyond DOM state
+}
+
+function removeSubtask(idx) {
+  const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
+  if (row) row.remove();
+}
+
+// ── Detail: Relations ─────────────────────────────────────────────
+
+function getRelationsFromDOM() {
+  const chips = document.querySelectorAll('#relations-list .relation-chip');
+  return Array.from(chips).map(chip => {
+    const typeLabel = chip.querySelector('.relation-type-label').textContent.trim();
+    const type = typeLabel === 'blocked by' ? 'blocked_by' : 'related_to';
+    return { targetId: parseInt(chip.dataset.target), type };
+  });
+}
+
+function addRelation() {
+  const input = document.getElementById('rel-target-input').value.trim();
+  const type  = document.getElementById('rel-type-select').value;
+  if (!input) return;
+
+  // Parse #id or title search
+  let target;
+  const idMatch = input.match(/^#?(\d+)$/);
+  if (idMatch) {
+    target = allItems.find(i => i.id === parseInt(idMatch[1]));
+  } else {
+    target = allItems.find(i => i.title.toLowerCase().includes(input.toLowerCase()));
+  }
+
+  if (!target) { showToast(`Item not found: "${input}"`, true); return; }
+  if (target.id === selectedItemId) { showToast('Cannot link item to itself', true); return; }
+
+  const list = document.getElementById('relations-list');
+  // Avoid duplicates
+  if (list.querySelector(`.relation-chip[data-target="${target.id}"]`)) {
+    showToast('Relation already exists', true); return;
+  }
+
+  list.insertAdjacentHTML('beforeend', relationChipHTML({ targetId: target.id, type }));
+  document.getElementById('rel-target-input').value = '';
+}
+
+function removeRelation(targetId) {
+  const chip = document.querySelector(`#relations-list .relation-chip[data-target="${targetId}"]`);
+  if (chip) chip.remove();
+}
+
+// ── Detail: Save ──────────────────────────────────────────────────
+
+async function saveDetail() {
+  const item = allItems.find(i => i.id === selectedItemId);
+  if (!item) return;
+
+  const newStatus = document.getElementById('d-status').value;
+  const wasNotClosed = item.status !== 'Closed';
+
+  const body = {
+    title:       document.getElementById('d-title').value.trim(),
+    status:      newStatus,
+    priority:    document.getElementById('d-priority').value,
+    tags:        getCurrentTags(),
+    description: document.getElementById('d-description').value,
+    subtasks:    getSubtasksFromDOM(),
+    relations:   getRelationsFromDOM(),
+  };
+
+  const msEl = document.getElementById('d-milestone-id');
+  if (msEl) body.milestoneId = msEl.value ? parseInt(msEl.value) : null;
+
+  const implEl = document.getElementById('d-implementation');
+  if (implEl) body.implementation = implEl.value;
+
+  try {
+    const updated = await api('PUT', `/api/projects/${activeProject.id}/items/${item.id}`, body);
+    Object.assign(item, updated);
+    showToast('Saved.');
+    if (newStatus === 'Closed' && wasNotClosed) fireConfetti();
+    renderView();
+    openDetail(item.id); // refresh detail panel
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function deleteCurrentItem() {
+  if (!selectedItemId) return;
+  const item = allItems.find(i => i.id === selectedItemId);
+  if (!item) return;
+  if (!confirm(`Delete #${item.id} "${item.title}"?`)) return;
+
+  await api('DELETE', `/api/projects/${activeProject.id}/items/${item.id}`);
+  allItems = allItems.filter(i => i.id !== item.id);
+  closeDetail();
+  renderView();
+  showToast('Deleted.');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// NEW ITEM MODAL
+// ════════════════════════════════════════════════════════════════════
+
+function openNewItemModal() {
+  if (!activeProject) { showToast('Select a project first', true); return; }
+  const milestones = allItems.filter(i => i.type === 'milestone');
+
+  openModal('New Item', `
+    <div class="modal-field">
+      <label class="modal-label">Type</label>
+      <select class="modal-select" id="new-item-type" onchange="onNewItemTypeChange()">
+        <option value="milestone">Milestone</option>
+        <option value="design_doc">Design Doc</option>
+        <option value="task">Task</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Title</label>
+      <input class="modal-input" id="new-item-title" placeholder="Item title" autofocus>
+    </div>
+    <div class="modal-field" id="modal-milestone-row" style="display:none">
+      <label class="modal-label">Milestone</label>
+      <select class="modal-select" id="new-item-milestone">
+        <option value="">— none —</option>
+        ${milestones.map(m => `<option value="${m.id}">#${m.id} ${esc(m.title)}</option>`).join('')}
+      </select>
+    </div>
+  `, async () => {
+    const type  = document.getElementById('new-item-type').value;
+    const title = document.getElementById('new-item-title').value.trim();
+    if (!title) { showToast('Title required', true); return false; }
+
+    const body = { type, title };
+    const msEl = document.getElementById('new-item-milestone');
+    if (msEl && msEl.value) body.milestoneId = parseInt(msEl.value);
+
+    const item = await api('POST', `/api/projects/${activeProject.id}/items`, body);
+    // Update nextId locally
+    activeProject.nextId = item.id + 1;
+    allItems.push(item);
+    renderView();
+    openDetail(item.id);
+  });
+  setTimeout(() => {
+    document.getElementById('new-item-title')?.focus();
+    onNewItemTypeChange();
+  }, 50);
+}
+
+function onNewItemTypeChange() {
+  const type = document.getElementById('new-item-type')?.value;
+  const row  = document.getElementById('modal-milestone-row');
+  if (row) row.style.display = (type === 'design_doc' || type === 'task') ? 'block' : 'none';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════════════════════
+
+function openModal(title, contentHTML, onConfirm) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-content').innerHTML = contentHTML;
+  modalConfirmFn = onConfirm;
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+  modalConfirmFn = null;
+}
+
+async function confirmModal() {
+  if (!modalConfirmFn) { closeModal(); return; }
+  const result = await modalConfirmFn();
+  if (result !== false) closeModal();
+}
+
+function handleModalOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('filter-wrap');
+  if (wrap && !e.composedPath().includes(wrap)) closeFilterDropdown();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('modal-overlay').classList.contains('visible')) {
+      closeModal();
+    } else if (!document.getElementById('filter-dropdown').classList.contains('hidden')) {
+      closeFilterDropdown();
+    } else {
+      closeDetail();
+    }
+  }
+  if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('visible')) {
+    // Enter confirms modal only if not inside a textarea
+    if (document.activeElement.tagName !== 'TEXTAREA') confirmModal();
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════════════════════
+
+let toastTimer;
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('error', isError);
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('visible'), 2500);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CONFETTI
+// ════════════════════════════════════════════════════════════════════
+
+function fireConfetti() {
+  confetti({
+    particleCount: 120,
+    spread: 90,
+    origin: { y: 0.6 },
+    colors: ['#00ff41', '#39ff14', '#ffd700', '#4fc3f7', '#bb86fc'],
+    zIndex: 9999,
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BADGE / CHIP HELPERS
+// ════════════════════════════════════════════════════════════════════
+
+function statusBadge(status) {
+  const cls = 'badge badge-status-' + status.toLowerCase().replace(' ', '_');
+  return `<span class="${cls}">${esc(status)}</span>`;
+}
+
+function priorityBadge(priority) {
+  const cls = 'badge badge-priority-' + (priority || 'medium').toLowerCase();
+  const sym = priority === 'High' ? '▲' : priority === 'Low' ? '▼' : '●';
+  return `<span class="${cls}" title="${esc(priority)}">${sym}</span>`;
+}
+
+function typeBadgeHTML(type) {
+  if (type === 'milestone')  return `<span class="badge badge-type-milestone">Milestone</span>`;
+  if (type === 'design_doc') return `<span class="badge badge-type-design_doc">Design Doc</span>`;
+  if (type === 'task')       return `<span class="badge badge-type-task">Task</span>`;
+  return '';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MILESTONE COMPLETION
+// ════════════════════════════════════════════════════════════════════
+
+function milestonePercent(milestone) {
+  const tasks = allItems.filter(i => i.type === 'task' && i.milestoneId === milestone.id);
+  if (tasks.length === 0) return null;
+  const closed = tasks.filter(t => t.status === 'Closed').length;
+  return Math.round((closed / tasks.length) * 100);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// UTILITY
+// ════════════════════════════════════════════════════════════════════
+
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DETAIL PANEL RESIZE
+// ════════════════════════════════════════════════════════════════════
+
+(function () {
+  const handle = document.getElementById('detail-resize-handle');
+  const panel  = document.getElementById('detail-panel');
+  const MIN_W  = 280;
+  const MAX_W  = 700;
+
+  // Restore saved width
+  const saved = localStorage.getItem('detailPanelWidth');
+  if (saved) panel.style.width = saved;
+
+  let startX, startW;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    handle.classList.add('dragging');
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  function onMove(e) {
+    const w = Math.min(Math.max(startW + (startX - e.clientX), MIN_W), MAX_W);
+    panel.style.width = w + 'px';
+  }
+
+  function onUp() {
+    handle.classList.remove('dragging');
+    localStorage.setItem('detailPanelWidth', panel.style.width);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════════════════
+
+init();
+</script>
+</body>
+</html>
