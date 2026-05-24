@@ -766,7 +766,7 @@ body {
   margin-bottom: 6px;
 }
 
-/* Save / Delete buttons */
+/* Delete button */
 #detail-footer {
   padding: 10px 12px;
   border-top: 1px solid var(--border);
@@ -774,20 +774,6 @@ body {
   gap: 8px;
   flex-shrink: 0;
 }
-
-.btn-save {
-  flex: 1;
-  padding: 7px;
-  background: none;
-  border: 1px solid var(--green);
-  color: var(--green);
-  font-family: var(--font);
-  font-size: 11px;
-  cursor: pointer;
-  letter-spacing: 1px;
-  transition: all 0.15s;
-}
-.btn-save:hover { background: var(--green); color: var(--bg); }
 
 .btn-delete {
   padding: 7px 12px;
@@ -1096,7 +1082,6 @@ select option { background: #1a1a1a; }
         </div>
         <div id="detail-body"></div>
         <div id="detail-footer">
-          <button class="btn-save" onclick="saveDetail()">Save</button>
           <button class="btn-delete" onclick="deleteCurrentItem()">Delete</button>
         </div>
       </div>
@@ -1673,6 +1658,7 @@ function colEditorRemoveRow(btn) {
 // ════════════════════════════════════════════════════════════════════
 
 function openDetail(id) {
+  const previousId = selectedItemId;
   selectedItemId = id;
   const item = allItems.find(i => i.id === id);
   if (!item) return;
@@ -1684,10 +1670,12 @@ function openDetail(id) {
 
   const panel = document.getElementById('detail-panel');
   panel.classList.remove('hidden');
-  // Re-trigger animation
-  panel.style.animation = 'none';
-  panel.offsetHeight;
-  panel.style.animation = '';
+  // Re-trigger animation only when switching to a different item
+  if (id !== previousId) {
+    panel.style.animation = 'none';
+    panel.offsetHeight;
+    panel.style.animation = '';
+  }
 
   document.getElementById('detail-id').textContent = `#${item.id}`;
   document.getElementById('detail-type-badge').outerHTML = `<span id="detail-type-badge">${typeBadgeHTML(item.type)}</span>`;
@@ -1697,6 +1685,7 @@ function openDetail(id) {
 
   // Attach tag input handler
   setupTagInput(item);
+  setupAutoSave();
 }
 
 function buildDetailBody(item) {
@@ -1904,6 +1893,34 @@ function setupTagInput(item) {
   });
 }
 
+function setupAutoSave() {
+  // Title — save on blur
+  const title = document.getElementById('d-title');
+  if (title) title.addEventListener('blur', () => saveDetail());
+
+  // Select dropdowns — save on change
+  for (const id of ['d-status', 'd-priority', 'd-implementation', 'd-milestone-id']) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => saveDetail());
+  }
+
+  // Description — save on blur
+  const desc = document.getElementById('d-description');
+  if (desc) desc.addEventListener('blur', () => saveDetail());
+
+  // Subtask checkboxes and text inputs — delegated on the list container
+  // so rows added dynamically by addSubtask() are also covered
+  const subtasksList = document.getElementById('subtasks-list');
+  if (subtasksList) {
+    subtasksList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('subtask-check')) saveDetail();
+    });
+    subtasksList.addEventListener('blur', (e) => {
+      if (e.target.classList.contains('subtask-text')) saveDetail();
+    }, true); // capture phase so blur (which doesn't bubble) reaches the delegate
+  }
+}
+
 function addTagToDetail(tag) {
   const container = document.getElementById('tags-container');
   const input = document.getElementById('tag-input');
@@ -1911,10 +1928,12 @@ function addTagToDetail(tag) {
   span.className = 'tag-entry';
   span.innerHTML = `${esc(tag)}<span class="tag-remove" onclick="removeTag(this,'${esc(tag)}')">&times;</span>`;
   container.insertBefore(span, input);
+  saveDetail();
 }
 
 function removeTag(el, tag) {
   el.parentElement.remove();
+  saveDetail();
 }
 
 function getCurrentTags() {
@@ -1938,11 +1957,13 @@ function addSubtask() {
   const idx = list.querySelectorAll('.subtask-row').length;
   list.insertAdjacentHTML('beforeend', subtaskRowHTML({ text: '', done: false }, idx));
   list.lastElementChild.querySelector('.subtask-text').focus();
+  saveDetail();
 }
 
 function toggleSubtask(idx, done) {
   const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
   if (row) row.querySelector('.subtask-text').classList.toggle('done', done);
+  // saveDetail() is fired by the delegated 'change' listener in setupAutoSave()
 }
 
 function editSubtaskText(idx, val) {
@@ -1990,11 +2011,13 @@ function addRelation() {
 
   list.insertAdjacentHTML('beforeend', relationChipHTML({ targetId: target.id, type }));
   document.getElementById('rel-target-input').value = '';
+  saveDetail();
 }
 
 function removeRelation(targetId) {
   const chip = document.querySelector(`#relations-list .relation-chip[data-target="${targetId}"]`);
   if (chip) chip.remove();
+  saveDetail();
 }
 
 // ── Detail: Save ──────────────────────────────────────────────────
@@ -2030,7 +2053,6 @@ async function saveDetail() {
     if (newStatus === 'Closed'    && wasNotClosed)          { fireConfetti(); turtleReact('celebrate'); }
     if (newStatus === 'Rejected'  && oldStatus !== 'Rejected') turtleReact('sad');
     renderView();
-    openDetail(item.id); // refresh detail panel
   } catch (err) {
     showToast(err.message, true);
   }
