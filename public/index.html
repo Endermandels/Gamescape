@@ -1936,12 +1936,8 @@ function getSubtasksFromDOM() {
 function addSubtask() {
   const list = document.getElementById('subtasks-list');
   const idx = list.querySelectorAll('.subtask-row').length;
-  const div = document.createElement('div');
-  div.className = 'subtask-row';
-  div.dataset.idx = idx;
-  div.innerHTML = subtaskRowHTML({ text: '', done: false }, idx);
-  list.appendChild(div);
-  div.querySelector('.subtask-text').focus();
+  list.insertAdjacentHTML('beforeend', subtaskRowHTML({ text: '', done: false }, idx));
+  list.lastElementChild.querySelector('.subtask-text').focus();
 }
 
 function toggleSubtask(idx, done) {
