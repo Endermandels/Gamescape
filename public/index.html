@@ -2044,13 +2044,21 @@ async function deleteCurrentItem() {
   if (!selectedItemId) return;
   const item = allItems.find(i => i.id === selectedItemId);
   if (!item) return;
-  if (!confirm(`Delete #${item.id} "${item.title}"?`)) return;
 
-  await api('DELETE', `/api/projects/${activeProject.id}/items/${item.id}`);
-  allItems = allItems.filter(i => i.id !== item.id);
-  closeDetail();
-  renderView();
-  showToast('Deleted.');
+  openModal('Delete Item', `
+    <p style="color:var(--text);margin-bottom:6px">Delete <b>#${item.id}</b> &ldquo;${esc(item.title)}&rdquo;?</p>
+    <p style="color:var(--dim);font-size:11px">This cannot be undone.</p>
+  `, async () => {
+    try {
+      await api('DELETE', `/api/projects/${activeProject.id}/items/${item.id}`);
+      allItems = allItems.filter(i => i.id !== item.id);
+      closeDetail();
+      renderView();
+      showToast('Deleted.');
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════
