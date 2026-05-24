@@ -192,14 +192,17 @@ app.put('/api/projects/:id/items/:itemId', (req, res) => {
   const existing = readItem(projectDir, req.params.itemId);
   if (!existing) return res.status(404).json({ error: 'item not found' });
 
-  // Blocking rule: cannot close if blocked by an open item
+  // Blocking rule: cannot close item T if another open item A has a 'blocking' relation pointing at T
   if (req.body.status === 'Closed' && existing.status !== 'Closed') {
-    const blockers = (existing.relations || []).filter(r => r.type === 'blocked_by');
-    for (const rel of blockers) {
-      const blocker = readItem(projectDir, rel.targetId);
-      if (blocker && blocker.status !== 'Closed') {
+    const itemId = existing.id;
+    const allItems = readAllItems(projectDir);
+    for (const other of allItems) {
+      if (other.id === itemId) continue;
+      if (other.status === 'Closed') continue;
+      const blocksThis = (other.relations || []).some(r => r.type === 'blocking' && r.targetId === itemId);
+      if (blocksThis) {
         return res.status(409).json({
-          error: `Cannot close: blocked by #${rel.targetId} (${blocker.title}), which is not yet Closed.`
+          error: `Cannot close: blocked by #${other.id} (${other.title}), which is not yet Closed.`
         });
       }
     }

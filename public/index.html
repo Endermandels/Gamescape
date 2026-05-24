@@ -1811,7 +1811,7 @@ function buildDetailBody(item) {
     <div class="add-relation-row">
       <input class="add-relation-input" id="rel-target-input" placeholder="#id or title">
       <select class="add-relation-type" id="rel-type-select">
-        <option value="blocked_by">Blocked By</option>
+        <option value="blocking">Blocking</option>
         <option value="related_to">Related To</option>
       </select>
       <button class="btn-add-relation" onclick="addRelation()">Add</button>
@@ -1856,11 +1856,12 @@ function subtaskRowHTML(st, idx) {
 function relationChipHTML(r) {
   const target = allItems.find(i => i.id === r.targetId);
   const label  = target ? `#${target.id} ${esc(target.title)}` : `#${r.targetId}`;
-  const typeLabel = r.type === 'blocked_by' ? 'blocked by' : 'related to';
-  return `<div class="relation-chip" data-target="${r.targetId}">
+  const typeLabel = r.type === 'blocking' ? 'blocking' : 'related to';
+  const isBlocking = r.type === 'blocking';
+  return `<div class="relation-chip" data-target="${r.targetId}"${isBlocking ? ` onclick="openDetail(${r.targetId})" style="cursor:pointer"` : ''}>
     <span class="relation-type-label">${typeLabel}</span>
-    <span class="relation-target" onclick="openDetail(${r.targetId})">${label}</span>
-    <button class="relation-del" onclick="removeRelation(${r.targetId})">&#10005;</button>
+    <span class="relation-target"${!isBlocking ? ` onclick="openDetail(${r.targetId})"` : ''}>${label}</span>
+    <button class="relation-del" onclick="${isBlocking ? 'event.stopPropagation();' : ''}removeRelation(${r.targetId})">&#10005;</button>
   </div>`;
 }
 
@@ -1981,7 +1982,7 @@ function getRelationsFromDOM() {
   const chips = document.querySelectorAll('#relations-list .relation-chip');
   return Array.from(chips).map(chip => {
     const typeLabel = chip.querySelector('.relation-type-label').textContent.trim();
-    const type = typeLabel === 'blocked by' ? 'blocked_by' : 'related_to';
+    const type = typeLabel === 'blocking' ? 'blocking' : 'related_to';
     return { targetId: parseInt(chip.dataset.target), type };
   });
 }
