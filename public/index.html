@@ -2077,21 +2077,52 @@ async function saveDetail() {
   }
 }
 
+function collectBlockerIds(rootId) {
+  const ids = new Set();
+  const queue = [rootId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (ids.has(id)) continue;
+    ids.add(id);
+    const it = allItems.find(i => i.id === id);
+    if (!it) continue;
+    for (const rel of (it.relations || [])) {
+      if (rel.type === 'blocked_by') queue.push(rel.targetId);
+    }
+  }
+  return ids;
+}
+
 async function deleteCurrentItem() {
   if (!selectedItemId) return;
   const item = allItems.find(i => i.id === selectedItemId);
   if (!item) return;
 
+  const toDelete = collectBlockerIds(item.id);
+  const blockerIds = [...toDelete].filter(id => id !== item.id);
+
+  let extraMsg = '';
+  if (blockerIds.length > 0) {
+    const names = blockerIds.map(id => {
+      const b = allItems.find(i => i.id === id);
+      return b ? `#${b.id} &ldquo;${esc(b.title)}&rdquo;` : `#${id}`;
+    }).join(', ');
+    extraMsg = `<p style="color:var(--dim);font-size:11px;margin-top:4px">Also deletes ${blockerIds.length} blocker${blockerIds.length > 1 ? 's' : ''}: ${names}</p>`;
+  }
+
   openModal('Delete Item', `
     <p style="color:var(--text);margin-bottom:6px">Delete <b>#${item.id}</b> &ldquo;${esc(item.title)}&rdquo;?</p>
-    <p style="color:var(--dim);font-size:11px">This cannot be undone.</p>
+    ${extraMsg}
+    <p style="color:var(--dim);font-size:11px;margin-top:4px">This cannot be undone.</p>
   `, async () => {
     try {
-      await api('DELETE', `/api/projects/${activeProject.id}/items/${item.id}`);
-      allItems = allItems.filter(i => i.id !== item.id);
+      for (const id of toDelete) {
+        await api('DELETE', `/api/projects/${activeProject.id}/items/${id}`);
+      }
+      allItems = allItems.filter(i => !toDelete.has(i.id));
       closeDetail();
       renderView();
-      showToast('Deleted.');
+      showToast(`Deleted ${toDelete.size} item${toDelete.size > 1 ? 's' : ''}.`);
     } catch (err) {
       showToast(err.message, true);
     }
