@@ -1366,81 +1366,87 @@ function renderTree() {
   document.getElementById('kanban-view').classList.add('hidden');
   tv.classList.remove('hidden');
 
-  const items = getFilteredItems();
+  const filteredItems = getFilteredItems();
 
-  if (items.length === 0) {
+  if (filteredItems.length === 0) {
     tv.innerHTML = '<div class="empty-state">No items yet.<br>Click <b>+ Item</b> to create one.</div>';
     return;
   }
 
-  const milestones  = items.filter(i => i.type === 'milestone');
-  const designDocs  = items.filter(i => i.type === 'design_doc');
-  const tasks       = items.filter(i => i.type === 'task');
+  // Build childrenOf map from ALL items (not just filtered):
+  // childrenOf[X] = array of item IDs that have a blocking relation pointing at X
+  const childrenOf = new Map();
+  allItems.forEach(item => {
+    (item.relations || []).forEach(r => {
+      if (r.type === 'blocking') {
+        if (!childrenOf.has(r.targetId)) childrenOf.set(r.targetId, []);
+        childrenOf.get(r.targetId).push(item.id);
+      }
+    });
+  });
 
-  // Build a set of milestone IDs present in the current filtered view
-  const milestoneIdSet = new Set(milestones.map(m => m.id));
+  const filteredItemsSet = new Set(filteredItems.map(i => i.id));
+  const appearedInTree   = new Set();
 
   let html = '';
 
-  // Milestones with nested design docs AND nested tasks
+  // Render milestones as roots
+  const milestones = filteredItems.filter(i => i.type === 'milestone');
   milestones.forEach(m => {
-    const expanded   = treeExpanded[m.id] !== false; // default expanded
-    const childDocs  = designDocs.filter(d => d.milestoneId === m.id);
-    const childTasks = tasks.filter(t => t.milestoneId === m.id);
-    const mPct       = milestonePercent(m);
-    const hasChildren = childDocs.length > 0 || childTasks.length > 0;
-
     html += `<div class="tree-section">`;
-    html += `<div class="tree-node${selectedItemId === m.id ? ' selected' : ''}" data-id="${m.id}" onclick="handleTreeClick(event, ${m.id})">`;
-    html += `<span class="tree-toggle">${hasChildren ? (expanded ? '&#9660;' : '&#9654;') : ''}</span>`;
-    html += `<span class="tree-node-content">`;
-    html += `<span class="id-chip">#${m.id}</span>`;
-    html += `<span class="badge badge-type-milestone">M</span>`;
-    html += `<span class="node-title">${esc(m.title)}</span>`;
-    html += statusBadge(m.status);
-    html += priorityBadge(m.priority);
-    if (m.subtasks && m.subtasks.length > 0) {
-      const done = m.subtasks.filter(s => s.done).length;
-      html += `<span style="font-size:12px;color:var(--dim)">[${done}/${m.subtasks.length}]</span>`;
-    }
-    if (mPct !== null) html += `<span style="font-size:12px;color:var(--accent)">${mPct}%</span>`;
-    html += `</span></div>`;
-
-    if (expanded && hasChildren) {
-      html += `<div class="tree-children" id="children-${m.id}">`;
-      childDocs.forEach(d => { html += renderTreeNode(d); });
-      childTasks.forEach(t => { html += renderTreeNode(t); });
-      html += `</div>`;
-    }
+    html += renderTreeNodeRecursive(m, childrenOf, appearedInTree, filteredItemsSet, 0, new Set());
     html += `</div>`;
   });
 
-  // Design docs not attached to any milestone visible in the current filtered view
-  const orphanDocs = designDocs.filter(d => !d.milestoneId || !milestoneIdSet.has(d.milestoneId));
-  if (orphanDocs.length) {
+  // Unassigned: filtered items that never appeared in any subtree (milestones are always roots, never unassigned)
+  const unassigned = filteredItems.filter(i => i.type !== 'milestone' && !appearedInTree.has(i.id));
+  if (unassigned.length > 0) {
     html += `<div class="tree-section">`;
-    orphanDocs.forEach(d => { html += renderTreeNode(d); });
-    html += `</div>`;
-  }
-
-  // Free-floating tasks (no milestoneId, or milestoneId not in the visible set)
-  const floatingTasks = tasks.filter(t => !t.milestoneId || !milestoneIdSet.has(t.milestoneId));
-  if (floatingTasks.length) {
-    html += `<div class="tree-section">`;
-    floatingTasks.forEach(t => { html += renderTreeNode(t); });
+    html += `<div class="section-header" style="padding:6px 6px 4px">&#8212; Unassigned &#8212;</div>`;
+    unassigned.forEach(item => {
+      html += renderTreeNodeRecursive(item, childrenOf, appearedInTree, filteredItemsSet, 0, new Set());
+    });
     html += `</div>`;
   }
 
   tv.innerHTML = html;
 }
 
-function renderTreeNode(item) {
+function markSubtreeAppeared(itemId, childrenOf, filteredItemsSet, appearedInTree, visited) {
+  if (visited.has(itemId)) return;
+  visited.add(itemId);
+  appearedInTree.add(itemId);
+  (childrenOf.get(itemId) || []).filter(cid => filteredItemsSet.has(cid)).forEach(cid => {
+    markSubtreeAppeared(cid, childrenOf, filteredItemsSet, appearedInTree, visited);
+  });
+}
+
+function renderTreeNodeRecursive(item, childrenOf, appearedInTree, filteredItemsSet, depth, currentPath) {
+  // Cycle safety: if this item is already on the current path, skip it
+  if (currentPath.has(item.id)) return '';
+
+  // Mark entire subtree as appeared regardless of expand state so collapsed
+  // children are never incorrectly placed in the unassigned bucket
+  markSubtreeAppeared(item.id, childrenOf, filteredItemsSet, appearedInTree, new Set(currentPath));
+
+  // Find children: items in childrenOf[item.id] that pass the filter
+  const childIds = (childrenOf.get(item.id) || []).filter(cid => filteredItemsSet.has(cid));
+  const children = childIds.map(cid => allItems.find(i => i.id === cid)).filter(Boolean);
+  const hasChildren = children.length > 0;
+  const expanded = treeExpanded[item.id] !== false; // default expanded
+
+  let typeBadge = '';
+  if (item.type === 'milestone')  typeBadge = `<span class="badge badge-type-milestone">M</span>`;
+  if (item.type === 'design_doc') typeBadge = `<span class="badge badge-type-design_doc">DD</span>`;
+  if (item.type === 'task')       typeBadge = `<span class="badge badge-type-task">T</span>`;
+
+  const mPct = item.type === 'milestone' ? milestonePercent(item) : null;
+
   let html = `<div class="tree-node${selectedItemId === item.id ? ' selected' : ''}" data-id="${item.id}" onclick="handleTreeClick(event, ${item.id})">`;
-  html += `<span class="tree-toggle"></span>`;
+  html += `<span class="tree-toggle">${hasChildren ? (expanded ? '&#9660;' : '&#9654;') : ''}</span>`;
   html += `<span class="tree-node-content">`;
   html += `<span class="id-chip">#${item.id}</span>`;
-  if (item.type === 'design_doc') html += `<span class="badge badge-type-design_doc">DD</span>`;
-  if (item.type === 'task')       html += `<span class="badge badge-type-task">T</span>`;
+  html += typeBadge;
   html += `<span class="node-title">${esc(item.title)}</span>`;
   html += statusBadge(item.status);
   html += priorityBadge(item.priority);
@@ -1448,20 +1454,29 @@ function renderTreeNode(item) {
     const done = item.subtasks.filter(s => s.done).length;
     html += `<span style="font-size:12px;color:var(--dim)">[${done}/${item.subtasks.length}]</span>`;
   }
+  if (mPct !== null) html += `<span style="font-size:12px;color:var(--accent)">${mPct}%</span>`;
   html += `</span></div>`;
+
+  if (hasChildren && expanded) {
+    const nextPath = new Set(currentPath);
+    nextPath.add(item.id);
+    html += `<div class="tree-children">`;
+    children.forEach(child => {
+      html += renderTreeNodeRecursive(child, childrenOf, appearedInTree, filteredItemsSet, depth + 1, nextPath);
+    });
+    html += `</div>`;
+  }
+
   return html;
 }
 
 function handleTreeClick(e, id) {
-  // Toggle expand/collapse for milestones
-  const item = allItems.find(i => i.id === id);
-  if (item && item.type === 'milestone') {
-    const isToggle = e.target.classList.contains('tree-toggle') || e.target.closest('.tree-toggle');
-    if (isToggle) {
-      treeExpanded[id] = !(treeExpanded[id] !== false);
-      renderTree();
-      return;
-    }
+  // Toggle expand/collapse for any node that has children
+  const isToggle = e.target.classList.contains('tree-toggle') || e.target.closest('.tree-toggle');
+  if (isToggle) {
+    treeExpanded[id] = !(treeExpanded[id] !== false);
+    renderTree();
+    return;
   }
   openDetail(id);
 }
@@ -1699,7 +1714,6 @@ function setupDescriptionAutoGrow() {
 }
 
 function buildDetailBody(item) {
-  const milestones = allItems.filter(i => i.type === 'milestone');
   const mPct = item.type === 'milestone' ? milestonePercent(item) : null;
 
   let html = '';
@@ -1733,35 +1747,11 @@ function buildDetailBody(item) {
 
   // Design Doc extras
   if (item.type === 'design_doc') {
-    html += `<div class="field-row">
-      <div class="field-group">
-        <label class="field-label">Implementation</label>
-        <select class="field-select" id="d-implementation">
-          <option value="Optional"${item.implementation === 'Optional' ? ' selected' : ''}>Optional</option>
-          <option value="Required"${item.implementation === 'Required' ? ' selected' : ''}>Required</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Milestone</label>
-        <select class="field-select" id="d-milestone-id">
-          <option value="">— none —</option>
-          ${milestones.map(m =>
-            `<option value="${m.id}"${item.milestoneId === m.id ? ' selected' : ''}>#${m.id} ${esc(m.title)}</option>`
-          ).join('')}
-        </select>
-      </div>
-    </div>`;
-  }
-
-  // Task milestone link
-  if (item.type === 'task') {
     html += `<div class="field-group">
-      <label class="field-label">Milestone</label>
-      <select class="field-select" id="d-milestone-id">
-        <option value="">— free-floating —</option>
-        ${milestones.map(m =>
-          `<option value="${m.id}"${item.milestoneId === m.id ? ' selected' : ''}>#${m.id} ${esc(m.title)}</option>`
-        ).join('')}
+      <label class="field-label">Implementation</label>
+      <select class="field-select" id="d-implementation">
+        <option value="Optional"${item.implementation === 'Optional' ? ' selected' : ''}>Optional</option>
+        <option value="Required"${item.implementation === 'Required' ? ' selected' : ''}>Required</option>
       </select>
     </div>`;
   }
@@ -1910,7 +1900,7 @@ function setupAutoSave() {
   if (title) title.addEventListener('blur', () => saveDetail());
 
   // Select dropdowns — save on change
-  for (const id of ['d-status', 'd-priority', 'd-implementation', 'd-milestone-id']) {
+  for (const id of ['d-status', 'd-priority', 'd-implementation']) {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => saveDetail());
   }
@@ -1988,6 +1978,22 @@ function removeSubtask(idx) {
 
 // ── Detail: Relations ─────────────────────────────────────────────
 
+function wouldCreateCycle(fromId, toId) {
+  // BFS from toId following blocking relations in allItems
+  // If we reach fromId, it's a cycle
+  const visited = new Set();
+  const queue = [toId];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur === fromId) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const item = allItems.find(i => i.id === cur);
+    if (item) (item.relations || []).forEach(r => { if (r.type === 'blocking') queue.push(r.targetId); });
+  }
+  return false;
+}
+
 function getRelationsFromDOM() {
   const chips = document.querySelectorAll('#relations-list .relation-chip');
   return Array.from(chips).map(chip => {
@@ -2013,6 +2019,11 @@ function addRelation() {
 
   if (!target) { showToast(`Item not found: "${input}"`, true); return; }
   if (target.id === selectedItemId) { showToast('Cannot link item to itself', true); return; }
+
+  if (type === 'blocking' && wouldCreateCycle(selectedItemId, target.id)) {
+    showToast('Cannot add: would create a circular dependency', true);
+    return;
+  }
 
   const list = document.getElementById('relations-list');
   // Avoid duplicates
@@ -2050,9 +2061,6 @@ async function saveDetail() {
     subtasks:    getSubtasksFromDOM(),
     relations:   getRelationsFromDOM(),
   };
-
-  const msEl = document.getElementById('d-milestone-id');
-  if (msEl) body.milestoneId = msEl.value ? parseInt(msEl.value) : null;
 
   const implEl = document.getElementById('d-implementation');
   if (implEl) body.implementation = implEl.value;
@@ -2124,13 +2132,20 @@ function openNewItemModal() {
     if (!title) { showToast('Title required', true); return false; }
 
     const body = { type, title };
-    const msEl = document.getElementById('new-item-milestone');
-    if (msEl && msEl.value) body.milestoneId = parseInt(msEl.value);
 
     const item = await api('POST', `/api/projects/${activeProject.id}/items`, body);
     // Update nextId locally
     activeProject.nextId = item.id + 1;
     allItems.push(item);
+
+    const msEl = document.getElementById('new-item-milestone');
+    if (msEl && msEl.value) {
+      const milestoneId = parseInt(msEl.value);
+      const relations = [{ targetId: milestoneId, type: 'blocking' }];
+      const updated = await api('PUT', `/api/projects/${activeProject.id}/items/${item.id}`, { relations });
+      Object.assign(item, updated);
+    }
+
     turtleReact('excited');
     renderView();
     openDetail(item.id);
@@ -2144,7 +2159,7 @@ function openNewItemModal() {
 function onNewItemTypeChange() {
   const type = document.getElementById('new-item-type')?.value;
   const row  = document.getElementById('modal-milestone-row');
-  if (row) row.style.display = (type === 'design_doc' || type === 'task') ? 'block' : 'none';
+  if (row) row.style.display = type !== 'milestone' ? 'block' : 'none';
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -2249,10 +2264,12 @@ function typeBadgeHTML(type) {
 // ════════════════════════════════════════════════════════════════════
 
 function milestonePercent(milestone) {
-  const tasks = allItems.filter(i => i.type === 'task' && i.milestoneId === milestone.id);
-  if (tasks.length === 0) return null;
-  const closed = tasks.filter(t => t.status === 'Closed').length;
-  return Math.round((closed / tasks.length) * 100);
+  const blockers = allItems.filter(i =>
+    (i.relations || []).some(r => r.type === 'blocking' && r.targetId === milestone.id)
+  );
+  if (blockers.length === 0) return null;
+  const closed = blockers.filter(i => i.status === 'Closed').length;
+  return Math.round((closed / blockers.length) * 100);
 }
 
 // ════════════════════════════════════════════════════════════════════
