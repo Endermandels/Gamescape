@@ -1819,7 +1819,7 @@ function buildDetailBody(item) {
   });
   html += `</div>
     <div class="add-relation-row">
-      <input class="add-relation-input" id="rel-target-input" placeholder="#id or title">
+      <input class="add-relation-input" id="rel-target-input" placeholder="#id or title" onkeydown="if(event.key==='Enter'){event.preventDefault();addRelation();}">
       <select class="add-relation-type" id="rel-type-select">
         <option value="blocking">Blocking</option>
         <option value="related_to">Related To</option>
