@@ -964,16 +964,31 @@ body {
 }
 #turtle-companion.dragging { cursor: grabbing; }
 
+#turtle-body {
+  display: grid;
+  animation: turtle-idle 3s ease-in-out infinite;
+}
+#turtle-companion.celebrate #turtle-body { animation: turtle-celebrate 0.6s ease-in-out infinite; }
+#turtle-companion.celebrate #turtle-hat  { animation: hat-celebrate    0.6s ease-in-out infinite; }
+#turtle-companion.sad       #turtle-body { animation: turtle-sad       0.4s ease-in-out 4; }
+#turtle-companion.excited   #turtle-body { animation: turtle-excited   0.45s ease-in-out infinite; }
+#turtle-companion.dragging  #turtle-body { animation: turtle-wobble 0.35s ease-in-out infinite; }
+
 #turtle-emoji {
   font-size: 100px;
   line-height: 1;
   display: block;
-  animation: turtle-idle 3s ease-in-out infinite;
+  grid-area: 1 / 1;
 }
-#turtle-companion.celebrate #turtle-emoji { animation: turtle-celebrate 0.6s ease-in-out infinite; }
-#turtle-companion.sad       #turtle-emoji { animation: turtle-sad       0.4s ease-in-out 4; }
-#turtle-companion.excited   #turtle-emoji { animation: turtle-excited   0.45s ease-in-out infinite; }
-#turtle-companion.dragging  #turtle-emoji { animation: turtle-wobble 0.35s ease-in-out infinite; }
+#turtle-hat {
+  font-size: 44px;
+  line-height: 1;
+  grid-area: 1 / 1;
+  align-self: start;
+  justify-self: center;
+  z-index: 1;
+  pointer-events: none;
+}
 
 #turtle-bubble {
   font-size: 32px;
@@ -991,6 +1006,11 @@ body {
   0%, 100% { transform: translateY(0)   scale(1); }
   30%      { transform: translateY(-22px) scale(1.15); }
   60%      { transform: translateY(-8px)  scale(1.05); }
+}
+@keyframes hat-celebrate {
+  0%, 100% { transform: translateY(0); }
+  20%      { transform: translateY(-28px); }
+  50%      { transform: translateY(-6px); }
 }
 @keyframes turtle-sad {
   0%, 100% { transform: translateX(0)   rotate(0deg); }
@@ -1118,7 +1138,10 @@ select option { background: #1a1a1a; }
 <div id="turtle-companion">
   <div id="turtle-bubble"></div>
   <div id="turtle-flipper">
-    <span id="turtle-emoji">🐢</span>
+    <div id="turtle-body">
+      <span id="turtle-hat">🎩</span>
+      <span id="turtle-emoji">🐢</span>
+    </div>
   </div>
 </div>
 
@@ -2347,7 +2370,7 @@ function esc(str) {
 // ════════════════════════════════════════════════════════════════════
 
 const TURTLE_STATES = {
-  celebrate: { emoji: '🎉', ms: 3000 },
+  celebrate: { emoji: '',   ms: 3000 },
   sad:       { emoji: '😢', ms: 2500 },
   excited:   { emoji: '✨', ms: 2000 },
 };
