@@ -555,7 +555,8 @@ body {
   padding: 6px 7px;
   width: 100%;
   min-height: 80px;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
   line-height: 1.5;
 }
 .field-textarea:focus { outline: none; border-color: var(--green); }
@@ -1686,6 +1687,15 @@ function openDetail(id) {
   // Attach tag input handler
   setupTagInput(item);
   setupAutoSave();
+  setupDescriptionAutoGrow();
+}
+
+function setupDescriptionAutoGrow() {
+  const ta = document.getElementById('d-description');
+  if (!ta) return;
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+  grow();
+  ta.addEventListener('input', grow);
 }
 
 function buildDetailBody(item) {
