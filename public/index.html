@@ -2021,7 +2021,7 @@ function editSubtaskText(idx, val) {
 
 function removeSubtask(idx) {
   const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
-  if (row) row.remove();
+  if (row) { row.remove(); saveDetail(); }
 }
 
 // ── Detail: Relations ─────────────────────────────────────────────
