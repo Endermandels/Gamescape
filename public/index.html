@@ -2429,8 +2429,23 @@ function setTurtleFacing(direction) {
     companion.style.top    = saved.top;
   }
 
+  function clampToViewport() {
+    const left = parseFloat(companion.style.left);
+    const top  = parseFloat(companion.style.top);
+    if (isNaN(left) || isNaN(top)) return;
+    const rect        = companion.getBoundingClientRect();
+    const clampedLeft = Math.max(0, Math.min(window.innerWidth  - rect.width,  left));
+    const clampedTop  = Math.max(0, Math.min(window.innerHeight - rect.height, top));
+    companion.style.left = clampedLeft + 'px';
+    companion.style.top  = clampedTop  + 'px';
+    if (clampedLeft !== left || clampedTop !== top) settle();
+  }
+
+  window.addEventListener('resize', clampToViewport);
+
   // Set initial facing without animation once layout is ready
   requestAnimationFrame(() => {
+    clampToViewport();
     const rect   = companion.getBoundingClientRect();
     const facing = (rect.left + rect.width / 2) < window.innerWidth / 2 ? 'right' : 'left';
     currentFacing = facing;
