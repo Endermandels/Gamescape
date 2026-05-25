@@ -28,7 +28,13 @@
       "node_modules/**/*"
     ],
     "win": {
-      "target": "portable"
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "installerIcon": null,
+      "deleteAppDataOnUninstall": false
     }
   }
 }
