@@ -558,6 +558,11 @@ body {
 }
 .field-select:focus { outline: 1px solid var(--green); }
 
+input[type="date"].field-input {
+  color-scheme: dark;
+  cursor: pointer;
+}
+
 .field-textarea {
   background: var(--bg3);
   border: 1px solid var(--dim);
@@ -1804,11 +1809,17 @@ function buildDetailBody(item) {
     </div>`;
   }
 
-  // Milestone completion bar
-  if (item.type === 'milestone' && mPct !== null) {
-    html += `<div class="milestone-progress">
-      <div class="milestone-progress-label">Completion: ${mPct}% (from linked tasks)</div>
-      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${mPct}%"></div></div>
+  // Milestone-only fields
+  if (item.type === 'milestone') {
+    if (mPct !== null) {
+      html += `<div class="milestone-progress">
+        <div class="milestone-progress-label">Completion: ${mPct}% (from linked tasks)</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${mPct}%"></div></div>
+      </div>`;
+    }
+    html += `<div class="field-group">
+      <label class="field-label">Projected Completion</label>
+      <input type="date" class="field-input" id="d-due-date" value="${esc(item.dueDate || '')}">
     </div>`;
   }
 
@@ -1948,7 +1959,7 @@ function setupAutoSave() {
   if (title) title.addEventListener('blur', () => saveDetail());
 
   // Select dropdowns — save on change
-  for (const id of ['d-status', 'd-priority', 'd-implementation']) {
+  for (const id of ['d-status', 'd-priority', 'd-implementation', 'd-due-date']) {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => saveDetail());
   }
@@ -2110,8 +2121,11 @@ async function saveDetail() {
     relations:   getRelationsFromDOM(),
   };
 
-  const implEl = document.getElementById('d-implementation');
+  const implEl    = document.getElementById('d-implementation');
   if (implEl) body.implementation = implEl.value;
+
+  const dueDateEl = document.getElementById('d-due-date');
+  if (dueDateEl) body.dueDate = dueDateEl.value || null;
 
   try {
     const updated = await api('PUT', `/api/projects/${activeProject.id}/items/${item.id}`, body);
