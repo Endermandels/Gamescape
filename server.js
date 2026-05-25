@@ -107,6 +107,20 @@ app.delete('/api/projects/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Project reorder ────────────────────────────────────────────────────────
+
+app.put('/api/projects/reorder', (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids must be an array' });
+
+  const projects = readProjects();
+  const idStrs = ids.map(String);
+  const ordered = idStrs.map(id => projects.find(p => String(p.id) === id)).filter(Boolean);
+  const missing = projects.filter(p => !idStrs.includes(String(p.id)));
+  writeProjects([...ordered, ...missing]);
+  res.json({ ok: true });
+});
+
 // ── Kanban columns ─────────────────────────────────────────────────────────
 
 app.put('/api/projects/:id/columns', (req, res) => {

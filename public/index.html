@@ -139,6 +139,18 @@ body {
 
 .project-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.project-drag-handle {
+  color: var(--dim);
+  opacity: 0;
+  margin-right: 6px;
+  cursor: grab;
+  font-size: 11px;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.project-item:hover .project-drag-handle { opacity: 1; }
+.project-item.sortable-ghost { opacity: 0.4; }
+
 .project-delete-btn {
   background: none; border: none; color: var(--dim); cursor: pointer;
   font-family: var(--font); font-size: 12px; padding: 0 2px;
@@ -1164,7 +1176,9 @@ function renderSidebar() {
   projects.forEach(p => {
     const el = document.createElement('div');
     el.className = 'project-item' + (activeProject && activeProject.id === p.id ? ' active' : '');
+    el.dataset.id = p.id;
     el.innerHTML = `
+      <span class="project-drag-handle">⠿</span>
       <span class="project-item-name">${esc(p.name)}</span>
       <button class="project-delete-btn" onclick="deleteProject(event, ${p.id})" title="Delete project">&#10005;</button>
     `;
@@ -1173,6 +1187,17 @@ function renderSidebar() {
       selectProject(p);
     });
     list.appendChild(el);
+  });
+
+  Sortable.create(list, {
+    animation: 150,
+    handle: '.project-drag-handle',
+    ghostClass: 'sortable-ghost',
+    onEnd() {
+      const ids = [...list.children].map(el => el.dataset.id);
+      projects = ids.map(id => projects.find(p => String(p.id) === id)).filter(Boolean);
+      api('PUT', '/api/projects/reorder', { ids });
+    },
   });
 }
 
