@@ -1257,6 +1257,7 @@ async function selectProject(p) {
   activeFilters.priorities = new Set(savedFilters ? savedFilters.priorities : []);
   updateFilterButton();
   closeFilterDropdown();
+  treeExpanded = JSON.parse(localStorage.getItem(`treeExpanded-${p.id}`) || '{}');
   await loadItems();
   renderView();
 }
@@ -1558,6 +1559,7 @@ function handleTreeClick(e, id) {
   const isToggle = e.target.classList.contains('tree-toggle') || e.target.closest('.tree-toggle');
   if (isToggle) {
     treeExpanded[id] = !(treeExpanded[id] !== false);
+    localStorage.setItem(`treeExpanded-${activeProject.id}`, JSON.stringify(treeExpanded));
     renderTree();
     return;
   }
