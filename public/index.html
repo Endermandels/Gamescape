@@ -1167,6 +1167,16 @@ let treeExpanded  = {};  // milestoneId -> bool
 let modalConfirmFn = null;
 let sortableInstances = [];
 
+const _priorityRank = { 'High': 0, 'Medium': 1, 'Low': 2 };
+const _typeRank     = { 'milestone': 0, 'design_doc': 1, 'task': 2 };
+const _statusRank   = { 'In Progress': 0, 'New': 1, 'On Hold': 2, 'Rejected': 3, 'Closed': 4 };
+function compareItems(a, b) {
+  return (_priorityRank[a.priority] ?? 3) - (_priorityRank[b.priority] ?? 3)
+      || (_typeRank[a.type]         ?? 3) - (_typeRank[b.type]         ?? 3)
+      || (_statusRank[a.status]     ?? 5) - (_statusRank[b.status]     ?? 5)
+      || a.id - b.id;
+}
+
 // ════════════════════════════════════════════════════════════════════
 // BOOTSTRAP
 // ════════════════════════════════════════════════════════════════════
@@ -1462,7 +1472,9 @@ function renderTree() {
   let html = '';
 
   // Render milestones as roots
-  const milestones = filteredItems.filter(i => i.type === 'milestone');
+  const milestones = filteredItems
+    .filter(i => i.type === 'milestone')
+    .sort(compareItems);
   milestones.forEach(m => {
     html += `<div class="tree-section">`;
     html += renderTreeNodeRecursive(m, childrenOf, appearedInTree, filteredItemsSet, 0, new Set());
@@ -1470,7 +1482,7 @@ function renderTree() {
   });
 
   // Unassigned: filtered items that never appeared in any subtree (milestones are always roots, never unassigned)
-  const unassigned = filteredItems.filter(i => i.type !== 'milestone' && !appearedInTree.has(i.id));
+  const unassigned = filteredItems.filter(i => i.type !== 'milestone' && !appearedInTree.has(i.id)).sort(compareItems);
   if (unassigned.length > 0) {
     html += `<div class="tree-section">`;
     html += `<div class="section-header" style="padding:6px 6px 4px">&#8212; Unassigned &#8212;</div>`;
@@ -1502,7 +1514,7 @@ function renderTreeNodeRecursive(item, childrenOf, appearedInTree, filteredItems
 
   // Find children: items in childrenOf[item.id] that pass the filter
   const childIds = (childrenOf.get(item.id) || []).filter(cid => filteredItemsSet.has(cid));
-  const children = childIds.map(cid => allItems.find(i => i.id === cid)).filter(Boolean);
+  const children = childIds.map(cid => allItems.find(i => i.id === cid)).filter(Boolean).sort(compareItems);
   const hasChildren = children.length > 0;
   const expanded = treeExpanded[item.id] !== false; // default expanded
 
@@ -1569,7 +1581,7 @@ function renderKanban() {
   kv.innerHTML = '';
 
   columns.forEach(col => {
-    const colItems = items.filter(i => i.status === col);
+    const colItems = items.filter(i => i.status === col).sort(compareItems);
     const colEl = document.createElement('div');
     colEl.className = 'kanban-col';
     colEl.innerHTML = `
