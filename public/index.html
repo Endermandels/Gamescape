@@ -2017,17 +2017,39 @@ function getSubtasksFromDOM() {
   }));
 }
 
+function updateSubtaskBar() {
+  const list = document.getElementById('subtasks-list');
+  if (!list) return;
+  const rows  = list.querySelectorAll('.subtask-row');
+  const total = rows.length;
+  const done  = [...rows].filter(r => r.querySelector('.subtask-check').checked).length;
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+  let wrap = list.previousElementSibling;
+  if (!wrap || !wrap.classList.contains('subtask-bar-wrap')) {
+    list.insertAdjacentHTML('beforebegin', `<div class="subtask-bar-wrap">
+      <div class="subtask-bar-label"></div>
+      <div class="subtask-bar-bg"><div class="subtask-bar-fill" style="width:0%"></div></div>
+    </div>`);
+    wrap = list.previousElementSibling;
+  }
+  wrap.style.display = total > 0 ? '' : 'none';
+  wrap.querySelector('.subtask-bar-label').textContent = `${done}/${total} complete`;
+  wrap.querySelector('.subtask-bar-fill').style.width = `${pct}%`;
+}
+
 function addSubtask() {
   const list = document.getElementById('subtasks-list');
   const idx = list.querySelectorAll('.subtask-row').length;
   list.insertAdjacentHTML('beforeend', subtaskRowHTML({ text: '', done: false }, idx));
   list.lastElementChild.querySelector('.subtask-text').focus();
+  updateSubtaskBar();
   saveDetail();
 }
 
 function toggleSubtask(idx, done) {
   const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
   if (row) row.querySelector('.subtask-text').classList.toggle('done', done);
+  updateSubtaskBar();
   // saveDetail() is fired by the delegated 'change' listener in setupAutoSave()
 }
 
@@ -2037,7 +2059,7 @@ function editSubtaskText(idx, val) {
 
 function removeSubtask(idx) {
   const row = document.querySelector(`.subtask-row[data-idx="${idx}"]`);
-  if (row) { row.remove(); saveDetail(); }
+  if (row) { row.remove(); updateSubtaskBar(); saveDetail(); }
 }
 
 // ── Detail: Relations ─────────────────────────────────────────────
