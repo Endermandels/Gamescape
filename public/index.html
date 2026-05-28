@@ -1240,10 +1240,11 @@ async function selectProject(p) {
   document.getElementById('active-project-name').textContent = p.name;
   renderSidebar();
   closeDetail();
-  activeFilters.types.clear();
-  activeFilters.statuses.clear();
-  activeFilters.tags.clear();
-  activeFilters.priorities.clear();
+  const savedFilters = JSON.parse(localStorage.getItem(`filters-${p.id}`) || 'null');
+  activeFilters.types     = new Set(savedFilters ? savedFilters.types     : []);
+  activeFilters.statuses  = new Set(savedFilters ? savedFilters.statuses  : []);
+  activeFilters.tags      = new Set(savedFilters ? savedFilters.tags      : []);
+  activeFilters.priorities = new Set(savedFilters ? savedFilters.priorities : []);
   updateFilterButton();
   closeFilterDropdown();
   await loadItems();
@@ -1364,10 +1365,21 @@ function renderFilterDropdown() {
   document.getElementById('filter-dropdown').innerHTML = html;
 }
 
+function saveFilters() {
+  if (!activeProject) return;
+  localStorage.setItem(`filters-${activeProject.id}`, JSON.stringify({
+    types:      [...activeFilters.types],
+    statuses:   [...activeFilters.statuses],
+    tags:       [...activeFilters.tags],
+    priorities: [...activeFilters.priorities],
+  }));
+}
+
 function pickFilter(k) {
   const { cat, value } = _filterValues[k];
   if (activeFilters[cat].has(value)) activeFilters[cat].delete(value);
   else activeFilters[cat].add(value);
+  saveFilters();
   renderFilterDropdown();
   updateFilterButton();
   renderView();
@@ -1378,6 +1390,7 @@ function clearFilters() {
   activeFilters.statuses.clear();
   activeFilters.tags.clear();
   activeFilters.priorities.clear();
+  saveFilters();
   renderFilterDropdown();
   updateFilterButton();
   renderView();
