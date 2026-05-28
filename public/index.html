@@ -2293,6 +2293,7 @@ function openNewItemModal() {
     const body = { type, title };
 
     const item = await api('POST', `/api/projects/${activeProject.id}/items`, body);
+    localStorage.setItem('lastItemType', type);
     // Update nextId locally
     activeProject.nextId = item.id + 1;
     allItems.push(item);
@@ -2310,6 +2311,11 @@ function openNewItemModal() {
     openDetail(item.id);
   });
   setTimeout(() => {
+    const savedType = localStorage.getItem('lastItemType');
+    if (savedType) {
+      const sel = document.getElementById('new-item-type');
+      if (sel) sel.value = savedType;
+    }
     document.getElementById('new-item-title')?.focus();
     onNewItemTypeChange();
   }, 50);
