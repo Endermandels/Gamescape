@@ -1982,9 +1982,18 @@ function setupAutoSave() {
     if (el) el.addEventListener('change', () => saveDetail());
   }
 
-  // Description — save on blur
+  // Description — save on blur; CTRL+ENTER saves and blurs (ENTER inserts newline by default)
   const desc = document.getElementById('d-description');
-  if (desc) desc.addEventListener('blur', () => saveDetail());
+  if (desc) {
+    desc.addEventListener('blur', () => saveDetail());
+    desc.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        saveDetail();
+        desc.blur();
+      }
+    });
+  }
 
   // Subtask checkboxes and text inputs — delegated on the list container
   // so rows added dynamically by addSubtask() are also covered
