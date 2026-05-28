@@ -1978,6 +1978,11 @@ function setupAutoSave() {
     subtasksList.addEventListener('blur', (e) => {
       if (e.target.classList.contains('subtask-text')) saveDetail();
     }, true); // capture phase so blur (which doesn't bubble) reaches the delegate
+    subtasksList.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.classList.contains('subtask-text')) {
+        e.target.blur();
+      }
+    });
   }
 }
 
