@@ -577,6 +577,9 @@ input[type="date"].field-input {
   line-height: 1.5;
 }
 .field-textarea:focus { outline: none; border-color: var(--green); }
+.description-preview { cursor: text; white-space: pre-wrap; word-break: break-word; }
+.description-preview a { color: var(--green); text-decoration: underline; }
+.description-preview a:hover { opacity: 0.8; }
 
 /* inline row: two fields side by side */
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -1788,6 +1791,38 @@ function openDetail(id) {
   setupTagInput(item);
   setupAutoSave();
   setupDescriptionAutoGrow();
+  const _desc = document.getElementById('d-description');
+  const _prev = document.getElementById('d-description-preview');
+  if (_desc && _prev && _desc.value) {
+    _prev.innerHTML = renderDescriptionPreview(_desc.value);
+    _desc.style.display = 'none';
+    _prev.style.display = '';
+  }
+}
+
+function renderDescriptionPreview(text) {
+  // 1. Escape all text first to prevent XSS
+  let html = esc(text || '');
+
+  // 2. Convert [text](url) → <a> — only http/https URLs allowed
+  //    After esc(), parens and brackets are plain chars; quotes become &quot;
+  //    We match the escaped form: no special chars in brackets, URL contains no closing paren
+  html = html.replace(/\[([^\]]*)\]\((https?:\/\/[^)]*)\)/g, (_, linkText, url) => {
+    // url came through esc() so & is &amp; — decode just enough to validate scheme
+    const rawUrl = url.replace(/&amp;/g, '&');
+    if (!/^https?:\/\//i.test(rawUrl)) return esc('[') + linkText + esc('](') + url + esc(')');
+    return `<a href="${url.replace(/"/g, '&quot;')}" target="_blank" rel="noopener">${linkText}</a>`;
+  });
+
+  // 3. Convert #N → item links (digits only, not preceded by another digit/word char)
+  html = html.replace(/(?<![0-9a-zA-Z_])#(\d+)/g, (_, n) => {
+    return `<a href="#" class="item-link" data-id="${n}">#${n}</a>`;
+  });
+
+  // 4. Convert newlines to <br>
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
 }
 
 function setupDescriptionAutoGrow() {
@@ -1870,6 +1905,7 @@ function buildDetailBody(item) {
   html += `<div class="field-group">
     <label class="field-label">Description</label>
     <textarea class="field-textarea" id="d-description">${esc(item.description || '')}</textarea>
+    <div class="field-textarea description-preview" id="d-description-preview" style="display:none"></div>
   </div>`;
 
   // Subtasks
@@ -1998,7 +2034,54 @@ function setupAutoSave() {
 
   // Description — save on blur; CTRL+ENTER saves and blurs (ENTER inserts newline by default)
   const desc = document.getElementById('d-description');
-  if (desc) {
+  const preview = document.getElementById('d-description-preview');
+  if (desc && preview) {
+    desc.addEventListener('blur', () => {
+      saveDetail();
+      preview.innerHTML = renderDescriptionPreview(desc.value);
+      desc.style.display = 'none';
+      preview.style.display = '';
+    });
+    desc.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        saveDetail();
+        desc.blur();
+      }
+    });
+
+    // Paste: if clipboard text is a URL and text is selected, wrap as markdown link
+    desc.addEventListener('paste', (e) => {
+      const url = e.clipboardData.getData('text');
+      if (!/^https?:\/\//i.test(url)) return;
+      const start = desc.selectionStart;
+      const end = desc.selectionEnd;
+      if (start === end) return; // no selection — let default paste happen
+      e.preventDefault();
+      const selected = desc.value.slice(start, end);
+      const replacement = `[${selected}](${url})`;
+      desc.value = desc.value.slice(0, start) + replacement + desc.value.slice(end);
+      const cursor = start + replacement.length;
+      desc.setSelectionRange(cursor, cursor);
+      // Trigger auto-grow after programmatic value change
+      desc.dispatchEvent(new Event('input'));
+    });
+
+    // Click on preview → switch back to editing
+    preview.addEventListener('click', (e) => {
+      // Handle #N item links via delegation
+      const link = e.target.closest('.item-link');
+      if (link) {
+        e.preventDefault();
+        openDetail(parseInt(link.dataset.id, 10));
+        return;
+      }
+      preview.style.display = 'none';
+      desc.style.display = '';
+      desc.focus();
+    });
+  } else if (desc) {
+    // Fallback: no preview div (shouldn't happen, but keep save wired up)
     desc.addEventListener('blur', () => saveDetail());
     desc.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && e.ctrlKey) {

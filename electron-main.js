@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
 
 // Store data in the OS user-data folder so it survives app updates
@@ -20,6 +20,10 @@ function createWindow() {
   });
 
   win.removeMenu();
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
   win.loadURL(`http://localhost:${PORT}`);
 }
 
