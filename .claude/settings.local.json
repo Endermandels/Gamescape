@@ -4,7 +4,8 @@
       "Bash(node --check server.js)",
       "Bash(npm install *)",
       "Bash(npm start *)",
-      "Bash(curl -s http://localhost:3000)"
+      "Bash(curl -s http://localhost:3000)",
+      "PowerShell(Get-Content *)"
     ]
   }
 }

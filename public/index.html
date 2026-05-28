@@ -1173,7 +1173,11 @@ let sortableInstances = [];
 
 async function init() {
   await loadProjects();
-  if (projects.length > 0) selectProject(projects[0]);
+  if (projects.length > 0) {
+    const lastId = localStorage.getItem('lastProjectId');
+    const last = lastId && projects.find(p => String(p.id) === lastId);
+    selectProject(last || projects[0]);
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1231,6 +1235,7 @@ function renderSidebar() {
 
 async function selectProject(p) {
   activeProject = p;
+  localStorage.setItem('lastProjectId', p.id);
   selectedItemId = null;
   document.getElementById('active-project-name').textContent = p.name;
   renderSidebar();
