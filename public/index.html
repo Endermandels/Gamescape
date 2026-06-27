@@ -2516,6 +2516,7 @@ function typeBadgeHTML(type) {
 function milestonePercent(milestone) {
   const blockers = allItems.filter(i =>
     (i.relations || []).some(r => r.type === 'blocking' && r.targetId === milestone.id)
+    && i.status !== "Rejected"
   );
   if (blockers.length === 0) return null;
   const closed = blockers.filter(i => i.status === 'Closed').length;
